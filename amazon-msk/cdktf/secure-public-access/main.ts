@@ -1,3 +1,4 @@
+import * as dotenvx from "@dotenvx/dotenvx";
 import { Construct } from "constructs";
 import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op} from "cdktf";
 import instanceTypes from "./instance-types";
@@ -27,6 +28,7 @@ import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-avail
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
+dotenvx.config({ quiet:true });
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
   constructor(scope: Construct, id: string) {
@@ -99,7 +101,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     const subnetOffset = subnets.ids.length;
     const subnetMask = Fn.parseint(Fn.element(Fn.split("/", vpc.cidrBlock), 1), 10);
     const availableIpv4 = subnet.availableIpAddressCount;
-    // Math magic to find next power of 2 and based on that the subnetAddressPower
+    // Math magic to find next power of 2 and based on the subnetAddressPower
     const subnetAddressPower = Fn.log(Fn.pow(2, Fn.ceil(Fn.log(availableIpv4, 2))), 2);
     const subnetsMax = Op.sub(32 , Op.add(subnetAddressPower, subnetMask));
 

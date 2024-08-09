@@ -1,13 +1,15 @@
+zilla_plus_role="<your zilla plus role>"
+msk_cluster_name="<your msk cluster name>"
+public_tls_certificate_key="<your public tls certificate key ARN>"
+public_wildcard_dns="<your public wildcard dns>"
+cloudwatch_logs_group="<your cloudwatch logs group>"
+cloudwatch_metrics_namespace="<your cloudwatch metrics namespace>"
+
+## mTLS Specific Variables
+#msk_mtls_certificate_authority_arn="<your msk certificate authority arn>"
+#public_mtls_certificate_authority_arn="<your public certificate authority arn>"
+
+## optional
 #zilla_plus_security_groups=["<your zilla plus security group>"]
 #zilla_plus_role="<your zilla plus role>"
-#zilla_plus_capacity=2
-#zilla_plus_instance_type="t3.small"
 #zilla_plus_ssh_key="<your ssh key name>"
-#msk_cluster_name="<your msk cluster name>"
-#msk_certificate_authority_arn="<your msk certificate authority arn>"
-#public_tls_certificate_key="<your public tls certificate key ARN>"
-#public_wildcard_dns="<your public wildcard dns>"
-#public_certificate_authority_arn="<your public certificate authority arn>"
-#public_port=9094
-#cloudwatch_logs_group="<your cloudwatch logs group>"
-#cloudwatch_metrics_namespace="<your cloudwatch metrics namespace>"
