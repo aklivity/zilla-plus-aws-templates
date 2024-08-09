@@ -5,7 +5,10 @@ This guide will help you gather the necessary AWS values required to configure a
 ## Prerequisites
 
 1. Be subscribed to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
-1. Install AWS CLI: Follow the official [AWS CLI installation guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+1. [Install Node.js](https://nodejs.org/en/download/package-manager).
+1. [Install Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+1. [Install CDKTF](https://developer.hashicorp.com/terraform/tutorials/cdktf/cdktf-install).
+1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
 1. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 1. Set your aws region: `aws configure set region us-east-1`
 1. Verify your region and credentials: `aws configure list`
@@ -18,19 +21,6 @@ This guide will help you gather the necessary AWS values required to configure a
     secret_key     ****************XXXX              env
         region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
     ```
-
-1. Ensure you have `Node.js` installed `npm --version`.
-1. Ensure you have `Homebrew` installed. `brew --version`
-1. Install Terraform using Homebrew
-
-    ```bash
-    brew tap hashicorp/tap
-    brew install hashicorp/tap/terraform
-    ```
-
-1. Verify that Terraform is installed correctly. `terraform -version`
-1. Use npm to install the CDKTF CLI globally. `npm install -g cdktf-cli`
-1. Verify that CDKTF is installed correctly. `cdktf --version`
 
 ## (optional) Create an example MSK cluster
 
@@ -220,9 +210,7 @@ terraform init
 terraform plan
 ```
 
-This command will show the execution plan, and you will be prompted to provide necessary input variables. You can manually enter these values when prompted, or use a .tfvars file to provide them.
-
-If you prefer to use a .tfvars file for input variables, create a file named terraform.tfvars and add your variables similar to the provided example `terraform.tfvars.example`.
+This command will show the execution plan, and you will be prompted to provide necessary input variables. You can manually enter these values when prompted, or use a `.tfvars` file to provide them.
 
 ### 6. Apply the Terraform Plan
 
