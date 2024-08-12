@@ -1,4 +1,4 @@
-# CDKTF Project Setup Guide
+# Secure Public Access Terraform deploy via CDKTF
 
 This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Public Access using CDKTF.
 
@@ -24,9 +24,7 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## (optional) Create an example MSK cluster
 
-If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access.
-Use `cdktf deploy` inside the [example-cluster](../example-cluster/) folder to deploy the example MSK cluster.
-Note the `mskClusterName` from the outputs as you'll need this later.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later. You will need to set the [MSK client auth method](#msk-client-authentication-method) env var to `Unauthorized`.
 
 ## Required Terraform Variables
 
@@ -98,9 +96,13 @@ Note down the ARN of the ACM Private Certificate Authority you want to use.
 
 ## Optional Features
 
+These features all have default values and can be configured using environment variables and terraform variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
+
 ### Environment Variables
 
-You can set these variable values in your runtime environment or with a `.env` file. To create a `.env` from the example file run:
+You can set these variable values in your runtime environment or with a `.env` file.
+
+Create a `.env` file from the example file.
 
 ```bash
 cp .env.example .env
@@ -111,8 +113,8 @@ cp .env.example .env
 By default Zilla Plus will choose the most secure way configured for your MSK cluster. Order from most to least secure:
 
 1. mTLS
-2. SASL/SCRAM
-3. Unauthorized
+1. SASL/SCRAM
+1. Unauthorized
 
 If you want to specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
 
@@ -195,7 +197,7 @@ Note down the KeyPair name `KeyName` you want to use.
 
 ### Install Project Dependencies
 
-Install the necessary dependencies specified in the generated `package.json` file:
+Install the node.js dependencies specified in the `package.json` file:
 
 ```bash
 npm install
@@ -215,36 +217,26 @@ cdktf synth
 
 This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
 
-### Navigate to the Terraform Configuration Folder
+### Run terraform init and apply
 
-After synthesizing the configuration, navigate to the folder where the Terraform JSON output is located:
+After synthesizing the configuration you can use `terraform` to deploy zilla.
+
+Move your `.tfvars` file into the the generated dir or you can manually enter these values when prompted, or use a .tfvars file to provide them.
 
 ```bash
-cd cdktf.out/stacks/secure-public-access
+cp terraform.tfvars cdktf.out/stacks/secure-public-access/terraform.tfvars
 ```
 
-Speicfy the necessary variables based on your setup.
-
-### Run terraform init and plan
+Initialize terraform.
 
 ```bash
-terraform init
+terraform -chdir=cdktf.out/stacks/secure-public-access init
 ```
 
-```bash
-terraform plan
-```
-
-This command will show the execution plan, and you will be prompted to provide necessary input variables. You can manually enter these values when prompted, or use a .tfvars file to provide them.
-
-If you prefer to use a .tfvars file for input variables, create a file named terraform.tfvars and add your variables similar to the provided example `terraform.tfvars.example`.
-
-### Apply the Terraform Plan
-
-Once you have reviewed the plan and provided the necessary inputs, apply the plan to deploy the resources:
+Apply the plan, review the resources to be create, and confirm to deploy the resources:
 
 ```bash
-terraform apply
+terraform -chdir=cdktf.out/stacks/secure-public-access apply
 ```
 
 ### Configure Global DNS
@@ -256,7 +248,7 @@ After deploying the stack, check the outputs, where you can find the NetworkLoad
 Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
 
 ```bash
-nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
+nslookup network-load-balancer-86334a80cbd16ec2.elb.us-east-2.amazonaws.com
 ```
 
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider.
@@ -423,7 +415,7 @@ security.protocol=SSL
 ssl.truststore.location=/tmp/kafka.client.truststore.jks
 ```
 
-### 10. Test the Kafka Client
+### Test the Kafka Client
 
 This verifies internet connectivity to your MSK cluster via Zilla Plus for Amazon MSK.
 
