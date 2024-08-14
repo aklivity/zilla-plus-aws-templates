@@ -1,4 +1,4 @@
-import * as dotenvx from "@dotenvx/dotenvx";
+import { UserVariables } from "./variables";
 import { Construct } from "constructs";
 import {
   App,
@@ -35,10 +35,10 @@ import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-avail
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
-dotenvx.config({ quiet: true });
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
+    const userVariables = new UserVariables(this, "main");
 
     const awsProvider = new AwsProvider(this, "AWS", {});
 
@@ -148,15 +148,15 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
     }
 
-    let mskClientAuthentication = process.env.MSK_ACCESS_METHOD;
-    if (!mskClientAuthentication) {
+    let mskClientAuthentication;
+    if (userVariables.mskClientAuthentication === "Unknown") {
       mskClientAuthentication = mskCluster.bootstrapBrokersTls
         ? "mTLS"
         : mskCluster.bootstrapBrokersSaslScram
         ? "SASL/SCRAM"
         : mskCluster.bootstrapBrokers
         ? "Unauthorized"
-        : "Unknown";
+        : userVariables.mskClientAuthentication;
     }
 
     const bootstrapServers =
@@ -198,11 +198,8 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
       mskCertificateAuthority = mskCertificateAuthorityVar.stringValue;
 
-      const PUBLIC_CERTIFICATE_AUTHORITY =
-        process.env.PUBLIC_CERTIFICATE_AUTHORITY === "true";
-
       let publicCertificateAuthority = mskCertificateAuthority;
-      if (PUBLIC_CERTIFICATE_AUTHORITY) {
+      if (userVariables.publicCertificateAuthority) {
         const publicCertificateAuthorityVar = new TerraformVariable(
           this,
           "public_certificate_authority_arn",
@@ -231,11 +228,8 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 - ${mskCertificateAuthority}`;
     }
 
-    const CREATE_ZILLA_PLUS_ROLE =
-      process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
-
     let zillaPlusRole;
-    if (!CREATE_ZILLA_PLUS_ROLE) {
+    if (!userVariables.createZillaPlusRole) {
       const zillaPlusRoleVar = new TerraformVariable(
         this,
         "zilla_plus_role_name",
@@ -333,11 +327,9 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       zillaPlusRole = iamInstanceProfile.name;
     }
 
-    const CREATE_ZILLA_PLUS_SECURITY_GROUP =
-      process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
     let zillaPlusSecurityGroups;
 
-    if (!CREATE_ZILLA_PLUS_SECURITY_GROUP) {
+    if (!userVariables.createZillaPlusSecurityGroup) {
       const zillaPlusSecurityGroupsVar = new TerraformVariable(
         this,
         "zilla_plus_security_groups",
@@ -414,10 +406,9 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       secretId: publicTlsCertificateKey.stringValue,
     });
 
-    const SSH_KEY_ENABLED = process.env.SSH_KEY_ENABLED === "true";
     let keyName = "";
 
-    if (SSH_KEY_ENABLED) {
+    if (userVariables.sshKeyEnabled) {
       const keyNameVar = new TerraformVariable(this, "zilla_plus_ssh_key", {
         type: "string",
         description:
@@ -426,12 +417,10 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       keyName = keyNameVar.stringValue;
     }
 
-    const CLOUDWATCH_DISABLED = process.env.CLOUDWATCH_DISABLED === "true";
-
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = "";
 
-    if (!CLOUDWATCH_DISABLED) {
+    if (!userVariables.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
