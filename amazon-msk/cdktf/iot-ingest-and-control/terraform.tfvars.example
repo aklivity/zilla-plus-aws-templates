@@ -1,14 +1,14 @@
-#zilla_plus_role="<your zilla plus role"
-#zilla_plus_capacity=<desired zilla plus capacity>
-#instance_type="<desired instance type for zilla plus>"
-#zilla_plus_security_groups=["<your zilla plus security group>"]
+msk_cluster_name="<your msk cluster name>"
+msk_access_credentials_name="<your msk access credentials name>"
+public_tls_certificate_key="<your public tls certificate key ARN>"
+
+## optional
+#kafka_topic_mqtt_sessions="<your custom sessions topic name>"
+#kafka_topic_mqtt_messages="<your custom messages topic name>"
+#kafka_topic_mqtt_retained="<your custom retained topic name>"
 #public_tcp_port=<your public tcp port>
-#public_tls_certificate_key="<your public tls certificate key ARN"
-#msk_cluster_name="<your msk cluster name"
-#msk_access_credentials_name="<your msk access credentials name>"
-#kafka_topic_mqtt_sessions="<desired kafka topic for mqtt sessions>"
-#kafka_topic_mqtt_messages="<desired kafka topic for mqtt messages>"
-#kafka_topic_mqtt_retained="<desired kafka topic for mqtt retained>"
-#zilla_plus_ssh_key="<your ssh key name"
-#cloudwatch_logs_group="<your cloudwatch logs group"
+#zilla_plus_security_groups=["<your zilla plus security group>"]
+#zilla_plus_role="<your zilla plus role>"
+#zilla_plus_ssh_key="<your ssh key name>"
+#cloudwatch_logs_group="<your cloudwatch logs group>"
 #cloudwatch_metrics_namespace="<your cloudwatch metrics namespace>"

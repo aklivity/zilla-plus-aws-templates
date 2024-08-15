@@ -26,9 +26,12 @@ import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 
+import { UserVariables } from "./variables";
+
 export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
+    const userVariables = new UserVariables(this, "main");
 
     const awsProvider = new AwsProvider(this, "AWS", {});
 
@@ -153,10 +156,8 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const bootstrapBrokers = [Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0)];
 
-    const CREATE_ZILLA_PLUS_ROLE = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
-
     let zillaPlusRole;
-    if (!CREATE_ZILLA_PLUS_ROLE) {
+    if (!userVariables.createZillaPlusRole) {
       const zillaPlusRoleVar = new TerraformVariable(this, "zilla_plus_role_name", {
         type: "string",
         description: "The role name assumed by Zilla Plus instances.",
@@ -245,10 +246,9 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       description: "The public port number to be used by MQTT clients",
     });
 
-    const CREATE_ZILLA_PLUS_SECURITY_GROUP = process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
     let zillaPlusSecurityGroups;
 
-    if (!CREATE_ZILLA_PLUS_SECURITY_GROUP) {
+    if (!userVariables.createZillaPlusSecurityGroup) {
       const zillaPlusSecurityGroupsVar = new TerraformVariable(this, "zilla_plus_security_groups", {
         type: "list(string)",
         description: "The security groups associated with Zilla Plus instances.",
@@ -296,10 +296,9 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       secretId: publicTlsCertificateKey.stringValue,
     });
 
-    const SSH_KEY_ENABLED = process.env.SSH_KEY_ENABLED === "true";
     let keyName = "";
 
-    if (SSH_KEY_ENABLED) {
+    if (userVariables.sshKeyEnabled) {
       const keyNameVar = new TerraformVariable(this, "zilla_plus_ssh_key", {
         type: "string",
         description: "Name of an existing EC2 KeyPair to enable SSH access to the instances",
@@ -317,12 +316,10 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    const CLOUDWATCH_DISABLED = process.env.CLOUDWATCH_DISABLED === "true";
-
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = "";
 
-    if (!CLOUDWATCH_DISABLED) {
+    if (!userVariables.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
@@ -518,11 +515,9 @@ action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate
 runas=root
     `;
 
-    const MQTT_KAFKA_TOPIC_CREATION_DISABLED = process.env.MQTT_KAFKA_TOPIC_CREATION_DISABLED === "true";
-
     let kafkaTopicCreationCommand = "";
 
-    if (!MQTT_KAFKA_TOPIC_CREATION_DISABLED) {
+    if (!userVariables.mqttKafkaTopicCreationDisabled) {
       kafkaTopicCreationCommand = `
 wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
 tar -xzf kafka_2.13-3.5.1.tgz
