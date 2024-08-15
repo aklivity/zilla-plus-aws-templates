@@ -1,0 +1,51 @@
+name: Run Tests
+on: push
+jobs:
+  test-iot-ingest-and-control:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: amazon-msk/cdktf/iot-ingest-and-control
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install modules
+        working-directory: amazon-msk/cdktf/iot-ingest-and-control
+        run: npm install 
+      - name: Run tests
+        working-directory: amazon-msk/cdktf/iot-ingest-and-control
+        run: npm run test
+  test-secure-public-access:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: amazon-msk/cdktf/secure-public-access
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install modules
+        working-directory: amazon-msk/cdktf/secure-public-access
+        run: npm install 
+      - name: Run tests
+        working-directory: amazon-msk/cdktf/secure-public-access
+        run: npm run test
+  test-web-streaming:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: amazon-msk/cdktf/web-streaming
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install modules
+        working-directory: amazon-msk/cdktf/web-streaming
+        run: npm install 
+      - name: Run tests
+        working-directory: amazon-msk/cdktf/web-streaming
+        run: npm run test
