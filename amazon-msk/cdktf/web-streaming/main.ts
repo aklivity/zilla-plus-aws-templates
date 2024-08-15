@@ -26,9 +26,12 @@ import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 
+import { UserVariables } from "./variables";
+
 export class ZillaPlusWebStreamingStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
+    const userVars = new UserVariables(this, "main");
 
     const awsProvider = new AwsProvider(this, "AWS", {});
 
@@ -135,10 +138,9 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     });
 
     let path = `/${topic.stringValue}`;
-    const CUSTOM_PATH = process.env.CUSTOM_PATH === "true";
 
-    if (CUSTOM_PATH) {
-      const pathVar = new TerraformVariable(this, "path", {
+    if (userVars.customPath) {
+      const pathVar = new TerraformVariable(this, "custom_path", {
         type: "string",
         description: "The path the Kafka topic should be exposed to",
         default: "",
@@ -150,21 +152,14 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     const username = Fn.lookup(secretValue, "username");
     const password = Fn.lookup(secretValue, "password");
 
-
-    const CREATE_ZILLA_PLUS_ROLE =
-      process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
     const bootstrapBrokers = [Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0)];
 
     let zillaPlusRole;
-    if (!CREATE_ZILLA_PLUS_ROLE) {
-      const zillaPlusRoleVar = new TerraformVariable(
-        this,
-        "zilla_plus_role_name",
-        {
-          type: "string",
-          description: "The role name assumed by Zilla Plus instances.",
-        }
-      );
+    if (!userVars.createZillaPlusRole) {
+      const zillaPlusRoleVar = new TerraformVariable(this, "zilla_plus_role_name", {
+        type: "string",
+        description: "The role name assumed by Zilla Plus instances.",
+      });
 
       zillaPlusRole = zillaPlusRoleVar.stringValue;
     } else {
@@ -255,11 +250,9 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       description: "The public port number to be used by REST and SSE clients",
     });
 
-    const CREATE_ZILLA_PLUS_SECURITY_GROUP =
-      process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
     let zillaPlusSecurityGroups;
 
-    if (!CREATE_ZILLA_PLUS_SECURITY_GROUP) {
+    if (!userVars.createZillaPlusSecurityGroup) {
       const zillaPlusSecurityGroupsVar = new TerraformVariable(this, "zilla_plus_security_groups", {
         type: "list(string)",
         description: "The security groups associated with Zilla Plus instances.",
@@ -301,10 +294,9 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       secretId: publicTlsCertificateKey.stringValue,
     });
 
-    const SSH_KEY_ENABLED = process.env.SSH_KEY_ENABLED === "true";
     let keyName = "";
 
-    if (SSH_KEY_ENABLED) {
+    if (userVars.sshKeyEnabled) {
       const keyNameVar = new TerraformVariable(this, "zilla_plus_ssh_key", {
         type: "string",
         description: "Name of an existing EC2 KeyPair to enable SSH access to the instances",
@@ -322,12 +314,10 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    const CLOUDWATCH_DISABLED = process.env.CLOUDWATCH_DISABLED === "true";
-
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = "";
 
-    if (!CLOUDWATCH_DISABLED) {
+    if (!userVars.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
@@ -382,12 +372,11 @@ ${metricsSection}`;
         - stream.*`;
     }
 
-    const GLUE_REGISTRY_ENABLED = process.env.GLUE_REGISTRY_ENABLED === "true";
     let glueContent = "";
     let kafkaCacheClientGlueContent = "";
     let kafkaCacheServerGlueContent = "";
 
-    if (GLUE_REGISTRY_ENABLED) {
+    if (userVars.glueRegistryEnabled) {
       const glueRegistry = new TerraformVariable(this, "glue_registry", {
         type: "string",
         description: "The Glue Registry to fetch the schemas from",
@@ -624,12 +613,9 @@ action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate
 runas=root
     `;
 
-    const KAFKA_TOPIC_CREATION_DISABLED =
-      process.env.KAFKA_TOPIC_CREATION_DISABLED === "true";
-
     let kafkaTopicCreationCommand = "";
 
-    if (!KAFKA_TOPIC_CREATION_DISABLED) {
+    if (!userVars.kafkaTopicCreationDisabled) {
       kafkaTopicCreationCommand = `
 wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
 tar -xzf kafka_2.13-3.5.1.tgz

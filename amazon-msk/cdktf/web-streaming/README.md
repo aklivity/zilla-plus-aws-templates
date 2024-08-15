@@ -1,6 +1,6 @@
-# CDKTF Project Setup Guide
+# Web Streaming Terraform deploy via CDKTF
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus REST and SSE using CDKTF.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Web Streaming using CDKTF.
 
 ## Prerequisites
 
@@ -14,35 +14,37 @@ This guide will help you gather the necessary AWS values required to configure a
 1. Verify your region and credentials: `aws configure list`
 
     ```text
-            Name                    Value             Type    Location
-            ----                    -----             ----    --------
-         profile                <not set>             None    None
-      access_key     ****************XXXX              env
-      secret_key     ****************XXXX              env
-          region                us-east-1      config-file    ~/.aws/config
+          Name                    Value             Type    Location
+          ----                    -----             ----    --------
+       profile                <not set>             None    None
+    access_key     ****************XXXX              env
+    secret_key     ****************XXXX              env
+        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
     ```
 
 ## (optional) Create an example MSK cluster
 
-If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and SASL/SCRAM authentication setup.
-Use `cdktf deploy` inside the `example-cluster` folder to deploy the example MSK cluster.
-Note the `mskClusterName` from the outputs as you'll need this later.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later. You will need to set the [MSK client auth method](#msk-client-authentication-method) env var to `Unauthorized`.
 
-## Variables
+## Required Terraform Variables
 
-### 1. MSK Cluster Name (`msk_cluster_name`)
+You can set these variable values in your `terraform.tfvars` file. To create a `.tfvars` from the example file run:
 
-You need the name of your MSK cluster.
+```bash
+cp terraform.tfvars.example terraform.tfvars
+```
 
-List all MSK clusters:
+### `msk_cluster_name`: MSK Cluster Name
+
+To get a list all MSK clusters run:
 
 ```bash
 aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
 ```
 
-Note down the name (ClusterName) of the desired MSK cluster.
+Use the `ClusterName` of your desired MSK cluster for this variable.
 
-### 2. MSK Access Credentials Name (`msk_access_credentials_name`)
+### `msk_access_credentials_name`: MSK access credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret assicated with the cluster called `AmazonMSK_alice`.
 
@@ -58,7 +60,59 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-### 4. Zilla Plus Role (`zilla_plus_role`)
+### `kafka_topic`: Kafka Topic
+
+This variable defines the Kafka topic exposed through REST and SSE.
+
+### `public_tls_certificate_key`: Public TLS Certificate Key
+
+You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
+
+List all secrets in Secrets Manager:
+
+```bash
+aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output table
+```
+
+Find and note down the ARN of the secret that contains your public TLS certificate private key.
+
+### `zilla_plus_capacity`: Zilla Plus Capacity
+
+> Default: `2`
+
+This variable defines the initial number of Zilla Plus instances.
+
+### `zilla_plus_instance_type`: Zilla Plus EC2 Instance Type
+
+> Default: `t3.small`
+
+This variable defines the initial number of Zilla Plus instances.
+
+### `public_port`: Public TCP Port
+
+> Default: `7143`
+
+This variable defines the public port number to be used by Kafka clients.
+
+## Optional Features
+
+These features all have default values and can be configured using environment variables and terraform variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
+
+### Environment Variables
+
+You can set these variable values in your runtime environment or with a `.env` file.
+
+Create a `.env` file from the example file.
+
+```bash
+cp .env.example .env
+```
+
+### Custom root Path
+
+To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed. Set `CUSTOM_PATH` environment variable to `true` to enable custom path support and adding `custom_path` to you `terraform.tfvars` file.
+
+### Custom Zilla Plus Role
 
 By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to you `terraform.tfvars` file.
 
@@ -68,9 +122,9 @@ List all IAM roles:
 aws iam list-roles --query 'Roles[*].[RoleName,Arn]' --output table
 ```
 
-Note down the role name (RoleName) of the desired IAM role.
+Note down the role name `RoleName` of the desired IAM role.
 
-### 5. Zilla Plus Security Groups (`zilla_plus_security_groups`)
+### Custom Zilla Plus Security Groups
 
 By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to you `terraform.tfvars` file.
 
@@ -82,59 +136,16 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-### 8. Zilla Plus Capacity (`zillaPlusCapacity`)
+### Disable CloudWatch Integration
 
-This variable defines the initial number of Zilla Plus instances.
-
-#### Default Value
-
-- Default: `2`
-
-### 9. Public TCP Port (`publicTcpPort`)
-
-This variable defines the public port number to be used by REST and SSE clients.
-
-Default Value
-
-- Default: `7143`
-
-### 10. Kafka Topic (`kafkaTopic`)
-
-This variable defines the Kafka topic exposed through REST and SSE.
-
-## Optional Features
-
-### CUSTOM_PATH
-
-To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed.
-
-#### Steps to Configure
-
-1. Set CUSTOM_PATH=true to enable custom path support.
-2. Provide the path for the Kafka topic.
-
-### SSH Key Access
-
-To enable SSH access to the instances, set the environment variable `SSH_KEY_ENABLED` to `true`. You will also need the name of an existing EC2 KeyPair.
-
-1. List all EC2 KeyPairs:
-
-```bash
-aws ec2 describe-key-pairs --query 'KeyPairs[*].[KeyName]' --output table
-```
-
-Note down the KeyPair name (KeyName) you want to use.
-
-### CloudWatch Integration
-
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the environment variable `CLOUDWATCH_DISABLED` to `true`.
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `CLOUDWATCH_DISABLED` environment variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
 If you want to define your own, follow these steps.
 
-#### List All CloudWatch Log Groups (`cloudwatch_logs_group`)
+#### List All CloudWatch Log Groups
 
 ```bash
 aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
@@ -143,7 +154,7 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 This command will return a table listing the names of all the log groups in your CloudWatch.
 In your `terraform.tfvars` file add the desired CloudWatch Logs Group for variable name `cloudwatch_logs_group`
 
-#### List All CloudWatch Custom Metric Namespaces (`cloudwatch_metrics_namespace`)
+#### List All CloudWatch Custom Metric Namespaces
 
 ```bash
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
@@ -151,7 +162,7 @@ aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\
 
 In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for variable name `cloudwatch_metrics_namespace`
 
-### Glue Schema Registry
+### Enable Glue Schema Registry
 
 To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry.
 
@@ -163,17 +174,29 @@ aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
 
 Note down the Glue Registry name (RegistryName) you want to use.
 
+### Enable SSH Access
+
+To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable  to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
+
+List all EC2 KeyPairs:
+
+```bash
+aws ec2 describe-key-pairs --query 'KeyPairs[*].[KeyName]' --output table
+```
+
+Note down the KeyPair name `KeyName` you want to use.
+
 ## Deploy stack using Terraform
 
-### 1. Install Project Dependencies
+### Install Project Dependencies
 
-Install the necessary dependencies specified in the generated `package.json` file:
+Install the node.js dependencies specified in the `package.json` file:
 
 ```bash
 npm install
 ```
 
-### 2. Synthesize the Terraform Configuration
+### Synthesize the Terraform Configuration
 
 First, you need to synthesize the Terraform configuration from the CDKTF code.
 
@@ -187,39 +210,29 @@ cdktf synth
 
 This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
 
-### 4. Navigate to the Terraform Configuration Folder
+### Run terraform init and apply
 
-After synthesizing the configuration, navigate to the folder where the Terraform JSON output is located:
+After synthesizing the configuration you can use `terraform` to deploy zilla.
 
-```bash
-cd cdktf.out/stacks/rest-sse
-```
-
-Speicfy the necessary variables based on your setup.
-
-### 5. Run terraform init and plan
+Move your `.tfvars` file into the the generated dir or you can manually enter these values when prompted, or use a .tfvars file to provide them.
 
 ```bash
-terraform init
+cp terraform.tfvars cdktf.out/stacks/web-streaming/terraform.tfvars
 ```
+
+Initialize terraform.
 
 ```bash
-terraform plan
+terraform -chdir=cdktf.out/stacks/web-streaming init
 ```
 
-This command will show the execution plan, and you will be prompted to provide necessary input variables. You can manually enter these values when prompted, or use a .tfvars file to provide them.
-
-If you prefer to use a .tfvars file for input variables, create a file named terraform.tfvars and add your variables similar to the provided example `terraform.tfvars.example`.
-
-### 6. Apply the Terraform Plan
-
-Once you have reviewed the plan and provided the necessary inputs, apply the plan to deploy the resources:
+Apply the plan, review the resources to be create, and confirm to deploy the resources:
 
 ```bash
-terraform apply
+terraform -chdir=cdktf.out/stacks/web-streaming apply
 ```
 
-### 7. Configure Global DNS
+### Configure Global DNS
 
 This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy.
 When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider.
