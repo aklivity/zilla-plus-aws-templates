@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@cdktf/provider-aws": "^19.27.0",
+    "@dotenvx/dotenvx": "^1.6.4",
     "cdktf": "^0.20.8",
     "constructs": "^10.3.0"
   },

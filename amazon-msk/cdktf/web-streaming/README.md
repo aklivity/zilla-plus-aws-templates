@@ -24,7 +24,7 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## (optional) Create an example MSK cluster
 
-If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later. You will need to set the [MSK client auth method](#msk-client-authentication-method) env var to `Unauthorized`.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later.
 
 ## Required Terraform Variables
 
@@ -47,18 +47,6 @@ Use the `ClusterName` of your desired MSK cluster for this variable.
 ### `msk_access_credentials_name`: MSK access credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret assicated with the cluster called `AmazonMSK_alice`.
-
-### 3. Public TLS Certificate Key (`public_tls_certificate_key`)
-
-You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
-
-List all secrets in Secrets Manager:
-
-```bash
-aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output table
-```
-
-Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
 ### `kafka_topic`: Kafka Topic
 
@@ -250,7 +238,7 @@ For testing purposes you can edit your local /etc/hosts file instead of updating
 X.X.X.X  web.example.aklivity.io
 ```
 
-### 8. Test the Zilla Plus REST and SSE
+### Test the Zilla Plus REST and SSE
 
 If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
 

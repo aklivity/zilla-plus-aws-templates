@@ -304,7 +304,7 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       keyName = keyNameVar.stringValue;
     }
 
-    const instanceType = new TerraformVariable(this, "instance_type", {
+    const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
       type: "string",
       default: "t3.small",
       description: "MSK Proxy EC2 instance type",
