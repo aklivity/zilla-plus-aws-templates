@@ -7,20 +7,19 @@ This guide will help you gather the necessary AWS values required to configure a
 1. Be subscribed to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
 1. [Install Node.js](https://nodejs.org/en/download/package-manager).
 1. [Install Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
-1. [Install CDKTF](https://developer.hashicorp.com/terraform/tutorials/cdktf/cdktf-install).
 1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
 1. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 1. Set your aws region: `aws configure set region us-east-1`
 1. Verify your region and credentials: `aws configure list`
 
-    ```text
-          Name                    Value             Type    Location
-          ----                    -----             ----    --------
-       profile                <not set>             None    None
-    access_key     ****************XXXX              env
-    secret_key     ****************XXXX              env
-        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
-    ```
+   ```text
+         Name                    Value             Type    Location
+         ----                    -----             ----    --------
+      profile                <not set>             None    None
+   access_key     ****************XXXX              env
+   secret_key     ****************XXXX              env
+       region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
+   ```
 
 ## (optional) Create an example MSK cluster
 
@@ -120,7 +119,7 @@ If you want to specify which client authentication method Zilla should use set t
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to you `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to your `terraform.tfvars` file.
 
 List all IAM roles:
 
@@ -132,7 +131,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to you `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to your `terraform.tfvars` file.
 
 List all security groups:
 
@@ -183,7 +182,7 @@ In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for
 
 ### Enable SSH Access
 
-To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable  to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
+To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
 
 List all EC2 KeyPairs:
 
@@ -212,7 +211,7 @@ Navigate to the CDKTF project directory.
 Run the following command to synthesize the configuration:
 
 ```bash
-cdktf synth
+npm run synth
 ```
 
 This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
@@ -241,11 +240,7 @@ terraform -chdir=cdktf.out/stacks/secure-public-access apply
 
 ### Configure Global DNS
 
-This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy.
-When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider.
-After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS.
-`NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"`
-Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
+This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS. `NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"` Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
 
 ```bash
 nslookup network-load-balancer-86334a80cbd16ec2.elb.us-east-2.amazonaws.com

@@ -9,6 +9,7 @@
     "get": "cdktf get",
     "build": "tsc",
     "synth": "cdktf synth",
+    "deploy": "cdktf deploy",
     "compile": "tsc --pretty",
     "watch": "tsc -w",
     "test": "jest",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^22.0.0",
+    "cdktf-cli": "^0.20.8",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.3",
     "ts-node": "^10.9.2",

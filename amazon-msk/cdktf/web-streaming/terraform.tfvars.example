@@ -4,7 +4,6 @@ kafka_topic="<your kafka topic>"
 public_tls_certificate_key="<your public tls certificate key ARN>"
 
 ## optional
-#custom_path="<your custom path>"
 #public_tcp_port=<your public tcp port>
 #zilla_plus_security_groups=["<your zilla plus security group>"]
 #zilla_plus_role="<your zilla plus role>"

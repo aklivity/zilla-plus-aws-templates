@@ -1,0 +1,15 @@
+{
+	"recommendations": [
+		"aklivity.zilla-vscode-ext",
+		"DavidAnson.vscode-markdownlint",
+		"EditorConfig.EditorConfig",
+		"esbenp.prettier-vscode",
+		"streetsidesoftware.code-spell-checker",
+		"vscode.markdown-language-features",
+		"vscode.markdown-math",
+		"yzhang.markdown-all-in-one",
+	],
+	"unwantedRecommendations": [
+		
+	]
+}

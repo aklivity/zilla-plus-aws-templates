@@ -7,7 +7,6 @@ This guide will help you gather the necessary AWS values required to configure a
 1. Be subscribed to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
 1. [Install Node.js](https://nodejs.org/en/download/package-manager).
 1. [Install Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
-1. [Install CDKTF](https://developer.hashicorp.com/terraform/tutorials/cdktf/cdktf-install).
 1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
 1. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 1. Set your aws region: `aws configure set region us-east-1`
@@ -46,7 +45,7 @@ Use the `ClusterName` of your desired MSK cluster for this variable.
 
 ### `msk_access_credentials_name`: MSK access credentials Secret Name
 
-Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret assicated with the cluster called `AmazonMSK_alice`.
+Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
 ### `kafka_topic`: Kafka Topic
 
@@ -80,7 +79,7 @@ This variable defines the initial number of Zilla Plus instances.
 
 > Default: `7143`
 
-This variable defines the public port number to be used by Kafka clients.
+This variable defines the public port number to be used by REST and SSE clients.
 
 ## Optional Features
 
@@ -98,11 +97,11 @@ cp .env.example .env
 
 ### Custom root Path
 
-To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed. Set `CUSTOM_PATH` environment variable to `true` to enable custom path support and adding `custom_path` to you `terraform.tfvars` file.
+To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed. Set `CUSTOM_PATH` environment variable to `true` to enable custom path support and adding `custom_path` to your `terraform.tfvars` file.
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to you `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to your `terraform.tfvars` file.
 
 List all IAM roles:
 
@@ -114,7 +113,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to you `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to your `terraform.tfvars` file.
 
 List all security groups:
 
@@ -193,7 +192,7 @@ Navigate to the CDKTF project directory.
 Run the following command to synthesize the configuration:
 
 ```bash
-cdktf synth
+npm run synth
 ```
 
 This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
@@ -222,11 +221,7 @@ terraform -chdir=cdktf.out/stacks/web-streaming apply
 
 ### Configure Global DNS
 
-This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy.
-When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider.
-After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS.
-`NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"`
-Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
+This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS. `NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"` Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
 
 ```bash
 nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
@@ -246,7 +241,7 @@ If you added `web.example.aklivity.io` as the domain, open a terminal and use `c
 curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/streams/<your path>"
 ```
 
-Note that `your path` defaults to the exposed kafka topic in your conifg.
+Note that `your path` defaults to the exposed Kafka topic in your config.
 
 In another terminal, use `curl` to POST and notice the data arriving on your SSE stream.
 

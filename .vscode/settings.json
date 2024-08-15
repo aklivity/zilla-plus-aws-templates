@@ -1,0 +1,41 @@
+{
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[xml]": {
+    "editor.defaultFormatter": "DotJoshJohnson.xml"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "editor.accessibilitySupport": "off",
+  "editor.autoClosingQuotes": "never",
+  "editor.formatOnSave": false,
+  "editor.formatOnSaveMode": "modifications",
+  "explorer.confirmDragAndDrop": false,
+  "markdown.extension.orderedList.autoRenumber": false,
+  "markdown.extension.orderedList.marker": "one",
+  "markdown.updateLinksOnFileMove.enabled": "always",
+  "markdownlint.run": "onSave",
+  "prettier.bracketSameLine": true,
+  "prettier.printWidth": 160,
+  "redhat.telemetry.enabled": false
+}
