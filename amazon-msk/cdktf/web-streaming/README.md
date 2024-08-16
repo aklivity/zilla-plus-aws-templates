@@ -87,7 +87,7 @@ These features all have default values and can be configured using environment v
 
 ### Environment Variables
 
-You can set these variable values in your runtime environment or with a `.env` file.
+You can set these variable values in your runtime environment or with a `.env` file. If you don't plan on modifying any of the environment variable defaults you can skip this step.
 
 Create a `.env` file from the example file.
 
