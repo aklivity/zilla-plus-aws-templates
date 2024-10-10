@@ -1,0 +1,232 @@
+name: {{name}}
+vaults:
+  secure:
+    type: aws-secrets
+{{#glueEnabled}}
+catalogs:
+  glue_catalog:
+    type: aws-glue
+    options:
+      registry: {{glueRegistry}}
+{{/glueEnabled}}
+{{^cloudwatchDisabled}}
+telemetry:
+  metrics:
+    - stream.active.received
+    - stream.active.sent
+    - stream.opens.received
+    - stream.opens.sent
+    - stream.data.received
+    - stream.data.sent
+    - stream.errors.received
+    - stream.errors.sent
+    - stream.closes.received
+    - stream.closes.sent
+  exporters:
+    stdout_logs_exporter:
+      type: stdout
+    aws0:
+      type: aws-cloudwatch
+      options:
+        logs:
+          group: {{cloudWatchLogsGroup}}
+          stream: events
+        metrics:
+          namespace: {{cloudWatchMetricsNamespace}}
+{{/cloudwatchDisabled}}
+bindings:
+  tcp_server:
+    type: tcp
+    kind: server
+    options:
+      host: 0.0.0.0
+      port: {{publicPort}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tls_server
+  tls_server:
+    type: tls
+    kind: server
+    vault: secure
+    options:
+      keys:
+        - {{publicTlsCertificateKey}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: http_server
+  http_server:
+    type: http
+    kind: server
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    routes:
+      - when:
+          - headers:
+              :path: /streams{{{path}}}
+        exit: sse_server
+      - when:
+          - headers:
+              :path: {{{path}}}/*
+          - headers:
+              :path: {{{path}}}
+        exit: http_kafka_mapping
+  sse_server:
+    type: sse
+    kind: server
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: sse_kafka_mapping
+  sse_kafka_mapping:
+    type: sse-kafka
+    kind: proxy
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    routes:
+      - when:
+          - path: /streams{{{path}}}
+        exit: kafka_cache_client
+        with:
+          topic: {{topic}}
+  http_kafka_mapping:
+    type: http-kafka
+    kind: proxy
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    routes:
+      - when:
+          - method: POST
+            path: {{{path}}}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: {{topic}}
+          key: ${idempotencyKey}
+      - when:
+          - method: PUT
+            path: {{{path}}}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: {{topic}}
+          key: ${params.id}
+      - when:
+          - method: DELETE
+            path: {{{path}}}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: {{topic}}
+          key: ${params.id}
+      - when:
+          - method: GET
+            path: {{{path}}}
+        exit: kafka_cache_client
+        with:
+          capability: fetch
+          topic: {{topic}}
+          merge:
+            content-type: application/json
+      - when:
+          - method: GET
+            path: {{{path}}}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: fetch
+          topic: {{topic}}
+          filters:
+            - key: ${params.id}
+  kafka_cache_client:
+    type: kafka
+    kind: cache_client
+{{#glueEnabled}}
+    options:
+      topics:
+        - name: {{topic}}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest
+{{/glueEnabled}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: kafka_cache_server
+  kafka_cache_server:
+    type: kafka
+    kind: cache_server
+    options:
+      bootstrap:
+        - {{topic}}
+{{#glueEnabled}}
+      topics:
+        - name: {{topic}}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest
+{{/glueEnabled}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: kafka_client
+  kafka_client:
+    type: kafka
+    kind: client
+    options:
+      servers: {{{kafkaBootstrapServers}}}
+      sasl:
+        mechanism: scram-sha-512
+        username: '{{kafkaSaslUsername}}'
+        password: '{{kafkaSaslPassword}}'
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tls_client
+  tls_client:
+    type: tls
+    kind: client
+    vault: secure
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tcp_client
+  tcp_client:
+    type: tcp
+    kind: client
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}

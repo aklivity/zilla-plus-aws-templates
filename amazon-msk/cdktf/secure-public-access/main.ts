@@ -25,11 +25,31 @@ import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-avail
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
+
 import { UserVariables } from "./variables";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
 import { AwsccProvider } from "./.gen/providers/awscc/provider";
+import Mustache = require("mustache");
+import fs =  require("fs");
 
+interface TemplateData {
+  name: string;
+  useAcm: boolean;
+  cloudwatchDisabled?: boolean;
+  cloudWatchLogsGroup?: string;
+  cloudWatchMetricsNamespace?: string;
+  publicPort?: number;
+  publicTlsCertificateKey?: string;
+  mTLS?: boolean;
+  publicCertificateAuthority?: string;
+  publicWildcardDNS?: string;
+  externalHost?: string;
+  internalHost?: string;
+  mskPort?: number;
+  mskCertificateAuthority?: string;
+  mskWildcardDNS?: string;
+}
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -147,9 +167,17 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     const mskBootstrapCommonPart = Fn.join(".", Fn.slice(addressParts, 1, Fn.lengthOf(addressParts)));
     mskWildcardDNS = Fn.format("*.%s", [mskBootstrapCommonPart]);
 
-    let tlsTrust = "";
-    let tlsClientSigners = "";
-    if (mskClientAuthentication === "mTLS") {
+    const mTLSEnabled = mskClientAuthentication === "mTLS";
+    const publicTlsCertificateViaAcm = userVariables.publicTlsCertificateViaAcm;
+
+    const data: TemplateData = {
+      name: 'public',
+      useAcm: publicTlsCertificateViaAcm,
+      cloudwatchDisabled: userVariables.cloudwatchDisabled,
+      mTLS: mTLSEnabled
+    };
+
+    if (mTLSEnabled) {
       // Seems like we can't get this from the MSK Cluster
       const mskCertificateAuthorityVar = new TerraformVariable(this, "msk_certificate_authority_arn", {
         type: "string",
@@ -176,19 +204,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         });
         publicCertificateAuthority = publicCertificateAuthorityVar.stringValue;
       }
-
-      tlsTrust = `      trust:
-        - ${publicCertificateAuthority}`;
-      tlsClientSigners = `      signers:
-- ${mskCertificateAuthority}`;
+      data.publicCertificateAuthority = publicCertificateAuthority;
     }
 
     const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
       type: "string",
       description: "TLS Certificate SecretsManager or CertificateManager ARN",
     });
-
-    const publicTlsCertificateViaAcm = userVariables.publicTlsCertificateViaAcm;
 
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
@@ -379,8 +401,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
     let acmYamlContent = "";
     let enclavesAcmServiceStart = "";
-    let zillaTelemetryContent = "";
-    let bindingTelemetryContent = "";
 
     if (publicTlsCertificateViaAcm) {
       acmYamlContent = `
@@ -425,41 +445,8 @@ systemctl start nitro-enclaves-acm.service
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      const logsSection = `
-        logs:
-          group: ${cloudWatchLogsGroup.stringValue}
-          stream: events`;
-
-      const metricsSection = `
-        metrics:
-          namespace: ${cloudWatchMetricsNamespace.stringValue}`;
-
-      zillaTelemetryContent = `
-telemetry:
-  metrics:
-    - stream.active.received
-    - stream.active.sent
-    - stream.opens.received
-    - stream.opens.sent
-    - stream.data.received
-    - stream.data.sent
-    - stream.errors.received
-    - stream.errors.sent
-    - stream.closes.received
-    - stream.closes.sent
-  exporters:
-    stdout_logs_exporter:
-      type: stdout
-    aws0:
-      type: aws-cloudwatch
-      options:
-${logsSection}
-${metricsSection}`;
-
-      bindingTelemetryContent = `
-    telemetry:
-      metrics:
-        - stream.*`;
+      data.cloudWatchLogsGroup = cloudWatchLogsGroup.stringValue;
+      data.cloudWatchMetricsNamespace = cloudWatchMetricsNamespace.stringValue;
     }
 
     const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
@@ -522,62 +509,15 @@ ${metricsSection}`;
 
     const internalHost = ["b-#.", Fn.element(Fn.split("*.", mskWildcardDNS), 1)].join("");
 
-    const zillaYamlContent = `
-name: public
-vaults:
-  secure:
-    type: ${publicTlsCertificateViaAcm ? "aws-acm" : "aws-secrets"}
-${zillaTelemetryContent}
-bindings:
-  tcp_server:
-    type: tcp
-    kind: server
-    options:
-      host: 0.0.0.0
-      port: ${publicPort}
-${bindingTelemetryContent}
-    exit: tls_server
-  tls_server:
-    type: tls
-    kind: server
-    vault: secure
-    options:
-      keys:
-      - ${publicTlsCertificateKey.stringValue}
-${tlsTrust}
-    routes:
-    - exit: kafka_proxy
-      when:
-      - authority: '${publicWildcardDNS.stringValue}'
-  kafka_proxy:
-    type: kafka-proxy
-    kind: proxy
-    options:
-      external:
-        host: '${externalHost}'
-        port: ${publicPort}
-      internal:
-        host: '${internalHost}'
-        port:  ${mskPort}
-    exit: tls_client
-  tls_client:
-    type: tls
-    kind: client
-    vault: secure
-    options:
-${tlsClientSigners}
-      trustcacerts: true
-    exit: tcp_client
-  tcp_client:
-    type: tcp
-    kind: client
-    options:
-      host: '*'
-      port: ${mskPort}
-    routes:
-    - when:
-      - authority: '${mskWildcardDNS}'
-    `;
+    data.publicPort = publicPort.value;
+    data.publicTlsCertificateKey = publicTlsCertificateKey.stringValue;
+    data.publicWildcardDNS = publicWildcardDNS.stringValue;
+    data.externalHost = externalHost;
+    data.internalHost = internalHost;
+    data.mskPort = mskPort;
+    data.mskWildcardDNS = mskWildcardDNS;
+    const yamlTemplate: string = fs.readFileSync('zilla.mustache', 'utf8');
+    const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `
 [main]
@@ -596,7 +536,7 @@ runas=root
     const userData = `#!/bin/bash -xe
 yum update -y aws-cfn-bootstrap
 cat <<EOF > /etc/zilla/zilla.yaml
-${zillaYamlContent}
+${renderedYaml}
 EOF
 
 cat <<EOF > /etc/nitro_enclaves/acm.yaml

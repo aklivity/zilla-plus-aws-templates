@@ -1,0 +1,109 @@
+name: {{name}}
+vaults:
+  secure:
+    type: {{#useAcm}}aws-acm{{/useAcm}}{{^useAcm}}aws-secrets{{/useAcm}}
+{{^cloudwatchDisabled}}
+telemetry:
+  metrics:
+    - stream.active.received
+    - stream.active.sent
+    - stream.opens.received
+    - stream.opens.sent
+    - stream.data.received
+    - stream.data.sent
+    - stream.errors.received
+    - stream.errors.sent
+    - stream.closes.received
+    - stream.closes.sent
+  exporters:
+    stdout_logs_exporter:
+      type: stdout
+    aws0:
+      type: aws-cloudwatch
+      options:
+        logs:
+          group: {{cloudWatchLogsGroup}}
+          stream: events
+        metrics:
+          namespace: {{cloudWatchMetricsNamespace}}
+{{/cloudwatchDisabled}}
+bindings:
+  tcp_server:
+    type: tcp
+    kind: server
+    options:
+      host: 0.0.0.0
+      port: {{publicPort}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tls_server
+  tls_server:
+    type: tls
+    kind: server
+    vault: secure
+    options:
+      keys:
+        - {{publicTlsCertificateKey}}
+      {{#mTLS}}
+      trust:
+        - {{publicCertificateAuthority}}
+      {{/mTLS}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    routes:
+      - exit: kafka_proxy
+        when:
+          - authority: '{{publicWildcardDNS}}'
+  kafka_proxy:
+    type: kafka-proxy
+    kind: proxy
+    options:
+      external:
+        host: '{{externalHost}}'
+        port: {{publicPort}}
+      internal:
+        host: '{{internalHost}}'
+        port: {{mskPort}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tls_client
+  tls_client:
+    type: tls
+    kind: client
+    vault: secure
+    options:
+      {{#mTLS}}
+      signers:
+        - {{mskCertificateAuthority}}
+      {{/mTLS}}
+      trustcacerts: true
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    exit: tcp_client
+  tcp_client:
+    type: tcp
+    kind: client
+    options:
+      host: '*'
+      port: {{mskPort}}
+{{^cloudwatchDisabled}}
+    telemetry:
+      metrics:
+        - stream.*
+{{/cloudwatchDisabled}}
+    routes:
+      - when:
+        - authority: '{{mskWildcardDNS}}'
+
