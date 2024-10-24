@@ -10,6 +10,7 @@ export class UserVariables extends Construct {
   cloudwatchDisabled: boolean = false;
   glueRegistryEnabled: boolean = false;
   kafkaTopicCreationDisabled: boolean = false;
+  jwtEnabled: boolean = false;
 
   constructor(scope: Construct, name: string) {
     super(scope, name);
@@ -22,5 +23,6 @@ export class UserVariables extends Construct {
     this.cloudwatchDisabled = process.env.CLOUDWATCH_DISABLED === "true";
     this.glueRegistryEnabled = process.env.GLUE_REGISTRY_ENABLED === "true";
     this.kafkaTopicCreationDisabled = process.env.KAFKA_TOPIC_CREATION_DISABLED === "true";
+    this.jwtEnabled = process.env.JWT_ENABLED === "true";
   }
 }

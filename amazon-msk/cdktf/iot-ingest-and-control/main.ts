@@ -356,7 +356,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         },
         metrics: {
           namespace: cloudWatchMetricsNamespace.stringValue
-        } 
+        }
       };
     }
 

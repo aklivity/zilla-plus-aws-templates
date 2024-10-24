@@ -156,6 +156,10 @@ aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\
 
 In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for variable name `cloudwatch_metrics_namespace`
 
+### Enable JWT Access Tokens
+
+To enable the JWT authentication and API access control, set the environment variable `JWT_ENABLED` to `true`. You will also need to set the JWT Issuer (`jwt_issuer`), JWT Audience (`jwt_audience`) and JWKS URL (`jwt_keys_url`) terraform variable.
+
 ### Enable Glue Schema Registry
 
 To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry to set the `glue_registry` terraform variable.

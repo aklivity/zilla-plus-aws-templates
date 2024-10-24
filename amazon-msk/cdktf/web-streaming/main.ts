@@ -37,6 +37,7 @@ interface TemplateData {
   topic?: string;
   public?: object;
   kafka?: object;
+  jwt?: object;
 }
 
 export class ZillaPlusWebStreamingStack extends TerraformStack {
@@ -323,6 +324,29 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
     const data: TemplateData = {
       name: 'web',
+    }
+
+    if (userVars.jwtEnabled) {
+      const issuer = new TerraformVariable(this, "jwt_issuer", {
+        type: "string",
+        description: "A string that identifies the principal that issued the JWT",
+      });
+
+      const audience = new TerraformVariable(this, "jwt_audience", {
+        type: "string",
+        description: "A string that identifies the recipients that the JWT is intended fo",
+      });
+
+      const keysUrl = new TerraformVariable(this, "jwt_keys_url", {
+        type: "string",
+        description: "The JSON Web Key Set (JWKS) URL: set of keys containing the public keys used to verify any JSON Web Token (JWT)",
+      });
+
+      data.jwt = {
+        issuer: issuer.stringValue,
+        audience: audience.stringValue,
+        keysUrl: keysUrl.stringValue
+      }
     }
 
     if (!userVars.cloudwatchDisabled) {

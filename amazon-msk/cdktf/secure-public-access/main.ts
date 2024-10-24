@@ -447,7 +447,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: cloudWatchMetricsNamespace.stringValue
-        } 
+        }
       };
     }
 
