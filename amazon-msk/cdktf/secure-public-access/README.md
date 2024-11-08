@@ -117,6 +117,16 @@ Create a `.env` file from the example file.
 cp .env.example .env
 ```
 
+### Internet Gateway ID
+
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `IGW_ID` environment variable. If not set the deployment will attempt to create on in the VPC.
+
+To query the IGW_ID of your MSK's VPN use the following comman:
+```bash
+VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.VpcConfig.VpcId" --output text)
+aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
+```
+
 ### MSK Client Authentication Method
 
 To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).

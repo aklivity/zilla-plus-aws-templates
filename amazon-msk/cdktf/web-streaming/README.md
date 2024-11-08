@@ -102,6 +102,17 @@ Create a `.env` file from the example file.
 cp .env.example .env
 ```
 
+### Internet Gateway ID
+
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `IGW_ID` environment variable. If not set the deployment will attempt to create on in the VPC.
+
+To query the IGW_ID of your MSK's VPN use the following comman:
+```bash
+SUBNET_ID=$(aws kafka describe-cluster --cluster-arn <you-msk-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text)
+VPC_ID=$(aws ec2 describe-subnets --subnet-ids $SUBNET_ID --query "Subnets[0].VpcId" --output text)
+aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
+```
+
 ### Custom root Path
 
 To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed. Set `CUSTOM_PATH` environment variable to `true` to enable custom path support and adding `custom_path` to your `terraform.tfvars` file.
@@ -316,7 +327,7 @@ X.X.X.X  web.example.aklivity.io
 If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
 
 ```bash
-curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/streams/<your path>"
+curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/<your path>"
 ```
 
 Note that `your path` defaults to the exposed Kafka topic in your config.

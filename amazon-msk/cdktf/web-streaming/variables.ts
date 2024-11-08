@@ -11,6 +11,7 @@ export class UserVariables extends Construct {
   glueRegistryEnabled: boolean = false;
   kafkaTopicCreationDisabled: boolean = false;
   jwtEnabled: boolean = false;
+  igwId: string | undefined;
 
   constructor(scope: Construct, name: string) {
     super(scope, name);
@@ -24,5 +25,6 @@ export class UserVariables extends Construct {
     this.glueRegistryEnabled = process.env.GLUE_REGISTRY_ENABLED === "true";
     this.kafkaTopicCreationDisabled = process.env.KAFKA_TOPIC_CREATION_DISABLED === "true";
     this.jwtEnabled = process.env.JWT_ENABLED === "true";
+    this.igwId = process.env.IGW_ID;
   }
 }
