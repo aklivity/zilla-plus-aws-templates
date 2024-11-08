@@ -72,11 +72,15 @@ bindings:
       metrics:
         - stream.*
     options:
+      access-control:
+        policy: cross-origin
+{{#jwt}}
       authorization:
         auth_jwt:
           credentials:
             headers:
               authorization: Bearer {credentials}
+{{/jwt}}
     routes:
       - when:
           - headers:
