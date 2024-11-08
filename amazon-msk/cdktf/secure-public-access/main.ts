@@ -32,6 +32,7 @@ import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
 import { AwsccProvider } from "./.gen/providers/awscc/provider";
 import Mustache = require("mustache");
 import fs =  require("fs");
+import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 
 interface TemplateData {
   name: string;
@@ -89,27 +90,48 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
           name: "vpc-id",
           values: [vpc.id],
         },
+        {
+          name: "mapPublicIpOnLaunch",
+          values: ["true"]
+        },
       ],
     });
 
-    const igw = new InternetGateway(this, "InternetGateway", {
-      vpcId: vpc.id,
-      tags: {
-        Name: "my-igw",
-      },
-    });
+    let igwId;
+    if (userVariables.igwId)
+    {
+      const existingIgw = new DataAwsInternetGateway(this, `ExistingInternetGateway-${id}`, {
+        filter: [
+          {
+            name: "attachment.vpc-id",
+            values: [vpc.id],
+          },
+        ],
+      });
+      igwId = existingIgw.id;
+    }
+    else
+    {
+      const igw = new InternetGateway(this, `InternetGateway-${id}`, {
+          vpcId: vpc.id,
+          tags: {
+            Name: "my-igw",
+          },
+        });
+      igwId = igw.id;
+    }
 
-    const publicRouteTable = new RouteTable(this, "PublicRouteTable", {
+    const publicRouteTable = new RouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpc.id,
       tags: {
         Name: "public-route-table",
       },
     });
 
-    new Route(this, "PublicRoute", {
+    new Route(this, `PublicRoute-${id}`, {
       routeTableId: publicRouteTable.id,
       destinationCidrBlock: "0.0.0.0/0",
-      gatewayId: igw.id,
+      gatewayId: igwId,
     });
 
     const availabilityZones = new DataAwsAvailabilityZones(this, "AZs", {});
@@ -126,19 +148,19 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       const subnetIndex = subnetOffset + i;
       const cidrBlock = Fn.cidrsubnet(vpc.cidrBlock, subnetsMax, subnetIndex + i);
 
-      const subnet = new Subnet(this, `PublicSubnet${i}`, {
+      const subnet = new Subnet(this, `PublicSubnet${i}-${id}`, {
         vpcId: vpc.id,
         cidrBlock: cidrBlock,
         availabilityZone: az,
         mapPublicIpOnLaunch: true,
         tags: {
-          Name: `public-subnet--${subnetIndex + 1}`,
+          Name: `public-subnet-${subnetIndex + 1}-${id}`,
         },
       });
 
       subnetIds.push(subnet.id);
 
-      new RouteTableAssociation(this, `PublicSubnet${i}RouteTableAssociation`, {
+      new RouteTableAssociation(this, `PublicSubnet${i}RouteTableAssociation-${id}`, {
         subnetId: subnet.id,
         routeTableId: publicRouteTable.id,
       });
@@ -216,8 +238,8 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
       zillaPlusRole = zillaPlusRoleVar.stringValue;
     } else {
-      const iamRole = new IamRole(this, "zilla_plus_role", {
-        name: "zilla_plus_role",
+      const iamRole = new IamRole(this, `zilla_plus_role-${id}`, {
+        name: `zilla_plus_role-${id}`,
         assumeRolePolicy: JSON.stringify({
           Version: "2012-10-17",
           Statement: [
@@ -272,8 +294,8 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         ],
       });
 
-      const iamInstanceProfile = new IamInstanceProfile(this, "zilla_plus_instance_profile", {
-        name: "zilla_plus_role",
+      const iamInstanceProfile = new IamInstanceProfile(this, `zilla_plus_instance_profile-${id}`, {
+        name: `zilla_plus_role-${id}`,
         role: iamRole.name,
       });
 
@@ -311,13 +333,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
           }]
         );
 
-        new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
+        new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
           roleArn: iamRole.arn,
           certificateArn: publicTlsCertificateKey.stringValue
         });
       }
 
-      new IamRolePolicy(this, "ZillaPlusRolePolicy", {
+      new IamRolePolicy(this, `ZillaPlusRolePolicy-${id}`, {
         role: iamRole.name,
         policy: JSON.stringify(iamPolicy),
       });
@@ -334,7 +356,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
       zillaPlusSecurityGroups = zillaPlusSecurityGroupsVar.listValue;
     } else {
-      const zillaPlusSG = new SecurityGroup(this, "ZillaPlusSecurityGroup", {
+      const zillaPlusSG = new SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpcId: vpc.id,
         description: "Security group for Zilla Plus",
         ingress: [
@@ -436,7 +458,7 @@ systemctl start nitro-enclaves-acm.service
         default: defaultMetricNamespace,
       });
 
-      new CloudwatchLogGroup(this, "loggroup", {
+      new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: cloudWatchLogsGroup.stringValue,
       });
 
@@ -481,21 +503,21 @@ systemctl start nitro-enclaves-acm.service
     }
 
     const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
-      name: "network-load-balancer",
+      name: `nlb-${id}`,
       loadBalancerType: "network",
       internal: false,
       subnets: subnetIds,
       enableCrossZoneLoadBalancing: true,
     });
 
-    const nlbTargetGroup = new LbTargetGroup(this, "NLBTargetGroup", {
-      name: "nlb-target-group",
+    const nlbTargetGroup = new LbTargetGroup(this, `NLBTargetGroup-${id}`, {
+      name: `nlb-tg-${id}`,
       port: publicPort.value,
       protocol: "TCP",
       vpcId: vpc.id,
     });
 
-    new LbListener(this, "NLBListener", {
+    new LbListener(this, `NLBListener-${id}`, {
       loadBalancerArn: nlb.arn,
       port: publicPort.value,
       protocol: "TCP",
@@ -578,7 +600,7 @@ systemctl start zilla-plus
 
     `;
 
-    const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
+    const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
       imageId: imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
@@ -598,7 +620,7 @@ systemctl start zilla-plus
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, "ZillaPlusGroup", {
+    new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: ZillaPlusLaunchTemplate.id,

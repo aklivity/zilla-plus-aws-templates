@@ -10,6 +10,7 @@ export class UserVariables extends Construct {
   sshKeyEnabled: boolean = false;
   cloudwatchDisabled: boolean = false;
   zillaPlusAmi: string = "";
+  igwId: string | undefined;
 
   constructor(scope: Construct, name: string) {
     super(scope, name);
@@ -35,5 +36,6 @@ export class UserVariables extends Construct {
     this.sshKeyEnabled = process.env.SSH_KEY_ENABLED === "true";
     this.cloudwatchDisabled = process.env.CLOUDWATCH_DISABLED === "true";
     this.zillaPlusAmi = process.env.ZILLA_PLUS_AMI ? process.env.ZILLA_PLUS_AMI : "";
+    this.igwId = process.env.IGW_ID;
   }
 }

@@ -28,6 +28,7 @@ import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { UserVariables } from "./variables";
 import Mustache = require("mustache");
 import fs =  require("fs");
+import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 
 interface TemplateData {
   name: string;
@@ -89,31 +90,52 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
           name: "vpc-id",
           values: [vpc.id],
         },
+        {
+          name: "mapPublicIpOnLaunch",
+          values: ["true"]
+        },
       ],
     });
 
-    const igw = new InternetGateway(this, "InternetGateway", {
+    let igwId;
+    if (userVars.igwId)
+    {
+      const existingIgw = new DataAwsInternetGateway(this, `ExistingInternetGateway-${id}`, {
+        filter: [
+          {
+            name: "attachment.vpc-id",
+            values: [vpc.id],
+          },
+        ],
+      });
+      igwId = existingIgw.id;
+    }
+    else
+    {
+      const igw = new InternetGateway(this, `InternetGateway-${id}`, {
+          vpcId: vpc.id,
+          tags: {
+            Name: "my-igw",
+          },
+        });
+      igwId = igw.id;
+    }
+
+    const publicRouteTable = new RouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpc.id,
       tags: {
-        Name: "my-igw",
-      },
+        Name: `public-route-table-${id}`,
+      }
     });
 
-    const publicRouteTable = new RouteTable(this, "PublicRouteTable", {
-      vpcId: vpc.id,
-      tags: {
-        Name: "public-route-table",
-      },
-    });
-
-    new Route(this, "PublicRoute", {
+    new Route(this, `PublicRoute-${id}`, {
       routeTableId: publicRouteTable.id,
       destinationCidrBlock: "0.0.0.0/0",
-      gatewayId: igw.id,
+      gatewayId: igwId
     });
 
     const availabilityZones = new DataAwsAvailabilityZones(this, "AZs", {});
-    const subnetOffset = subnets.ids.length;
+    const subnetOffset = Fn.lengthOf(subnets.ids);
     const subnetMask = Fn.parseint(Fn.element(Fn.split("/", vpc.cidrBlock), 1), 10);
     const availableIpv4 = subnet.availableIpAddressCount;
     // Math magic to find next power of 2 and based on that the subnetAddressPower
@@ -123,22 +145,22 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     const subnetIds = [];
     for (let i = 1; i < 3; i++) {
       const az = Fn.element(availabilityZones.names, i);
-      const subnetIndex = subnetOffset + i;
-      const cidrBlock = Fn.cidrsubnet(vpc.cidrBlock, subnetsMax, subnetIndex + i);
+      const subnetIndex = Op.add(subnetOffset, i);
+      const cidrBlock = Fn.cidrsubnet(vpc.cidrBlock, subnetsMax, Op.add(subnetIndex, i));
 
-      const subnet = new Subnet(this, `PublicSubnet${i}`, {
+      const subnet = new Subnet(this, `PublicSubnet${i}-${id}`, {
         vpcId: vpc.id,
         cidrBlock: cidrBlock,
         availabilityZone: az,
         mapPublicIpOnLaunch: true,
         tags: {
-          Name: `public-subnet--${subnetIndex + 1}`,
+          Name: `public-subnet-${subnetIndex + 1}-${id}`,
         },
       });
 
       subnetIds.push(subnet.id);
 
-      new RouteTableAssociation(this, `PublicSubnet${i}RouteTableAssociation`, {
+      new RouteTableAssociation(this, `PublicSubnet${i}RouteTableAssociation-${id}`, {
         subnetId: subnet.id,
         routeTableId: publicRouteTable.id,
       });
@@ -171,8 +193,8 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
       zillaPlusRole = zillaPlusRoleVar.stringValue;
     } else {
-      const iamRole = new IamRole(this, "zilla_plus_role", {
-        name: "zilla_plus_role",
+      const iamRole = new IamRole(this, `zilla_plus_role-${id}`, {
+        name: `zilla_plus_role-${id}`,
         assumeRolePolicy: JSON.stringify({
           Version: "2012-10-17",
           Statement: [
@@ -223,12 +245,12 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
         ],
       });
 
-      const iamInstanceProfile = new IamInstanceProfile(this, "zilla_plus_instance_profile", {
-        name: "zilla_plus_role",
+      const iamInstanceProfile = new IamInstanceProfile(this, `zilla_plus_instance_profile-${id}`, {
+        name: `zilla_plus_role-${id}`,
         role: iamRole.name,
       });
 
-      new IamRolePolicy(this, "ZillaPlusRolePolicy", {
+      new IamRolePolicy(this, `ZillaPlusRolePolicy-${id}`, {
         role: iamRole.name,
         policy: JSON.stringify({
           Version: "2012-10-17",
@@ -267,7 +289,7 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       });
       zillaPlusSecurityGroups = zillaPlusSecurityGroupsVar.listValue;
     } else {
-      const zillaPlusSG = new SecurityGroup(this, "ZillaPlusSecurityGroup", {
+      const zillaPlusSG = new SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpcId: vpc.id,
         description: "Security group for Zilla Plus",
         ingress: [
@@ -405,8 +427,8 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       owners: ["679593333241"],
     });
 
-    const nlb = new Lb(this, "NetworkLoadBalancer", {
-      name: "network-load-balancer",
+    const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
+      name: `nlb-${id}`,
       loadBalancerType: "network",
       internal: false,
       subnets: subnetIds,
@@ -414,14 +436,14 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       enableCrossZoneLoadBalancing: true,
     });
 
-    const nlbTargetGroup = new LbTargetGroup(this, "NLBTargetGroup", {
-      name: "nlb-target-group",
+    const nlbTargetGroup = new LbTargetGroup(this, `NLBTargetGroup-${id}`, {
+      name: `nlb-tg-${id}`,
       port: publicTcpPort.value,
       protocol: "TCP",
       vpcId: vpc.id,
     });
 
-    new LbListener(this, "NLBListener", {
+    new LbListener(this, `NLBListener-${id}`, {
       loadBalancerArn: nlb.arn,
       port: publicTcpPort.value,
       protocol: "TCP",
@@ -479,7 +501,7 @@ tar -xzf kafka_2.13-3.5.1.tgz
 cd kafka_2.13-3.5.1/libs
 wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
 cd ../bin
-SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id AmazonMSK_access --query SecretString --output text)
+SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskCredentialsSecretName.stringValue} --query SecretString --output text)
 USERNAME=$(echo $SECRET_STRING | jq -r '.username')
 PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
 
@@ -527,7 +549,7 @@ ${kafkaTopicCreationCommand}
 
     `;
 
-    const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
+    const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
       imageId: ami.imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
@@ -544,7 +566,7 @@ ${kafkaTopicCreationCommand}
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, "ZillaPlusGroup", {
+    new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: ZillaPlusLaunchTemplate.id,
