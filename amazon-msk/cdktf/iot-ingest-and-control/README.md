@@ -1,6 +1,6 @@
-# IOT Ingest and Control Terraform deploy via CDKTF
+# IoT Ingest and Control Terraform deploy via CDKTF
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IOT Ingest and Control using CDKTF.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IoT Ingest and Control using CDKTF.
 
 ## Prerequisites
 
