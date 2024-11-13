@@ -91,6 +91,17 @@ Create a `.env` file from the example file.
 cp .env.example .env
 ```
 
+### Internet Gateway ID
+
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `IGW_ID` environment variable. If not set the deployment will attempt to create on in the VPC.
+
+To query the IGW_ID of your MSK's VPN use the following comman:
+```bash
+SUBNET_ID=$(aws kafka describe-cluster --cluster-arn <you-msk-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text)
+VPC_ID=$(aws ec2 describe-subnets --subnet-ids $SUBNET_ID --query "Subnets[0].VpcId" --output text)
+aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
+```
+
 ### Kafka topics
 
 By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the environment variable `MQTT_KAFKA_TOPIC_CREATION_DISABLED` to `true` and set the `kafka_topic_mqtt_sessions`, `kafka_topic_mqtt_messages`, and `kafka_topic_mqtt_retained` in your `terraform.tfvars` file.
