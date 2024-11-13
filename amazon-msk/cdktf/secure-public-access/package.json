@@ -12,8 +12,8 @@
     "deploy": "NODE_OPTIONS='--max-old-space-size=8192' cdktf deploy",
     "compile": "tsc --pretty",
     "watch": "tsc -w",
-    "test": "NODE_OPTIONS='--max-old-space-size=8192' jest",
-    "test:watch": "NODE_OPTIONS='--max-old-space-size=8192' jest --watch",
+    "test": "cdktf get && NODE_OPTIONS='--max-old-space-size=8192' jest",
+    "test:watch": "cdktf get && NODE_OPTIONS='--max-old-space-size=8192' jest --watch",
     "upgrade": "npm i cdktf@latest cdktf-cli@latest",
     "upgrade:next": "npm i cdktf@next cdktf-cli@next"
   },
