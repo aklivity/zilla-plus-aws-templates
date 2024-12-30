@@ -12,12 +12,13 @@ function cidrBlocksOverlap(cidr1: string, cidr2: string): boolean {
     return start1 <= end2 && start2 <= end1;
 }
 
-export function findAvailableCidrBlocks(vpcCidrBlock: string, subnetCidrBlocks: string[], subnetMask: number, requiredCount: number = 2): string[] {
+export function findAvailableCidrBlocks(vpcCidrBlock: string, subnetCidrBlocks: string[], requiredCount: number = 2): string[] {
     const availableCidrs: string[] = [];
     const vpcRange = ip.cidrSubnet(vpcCidrBlock);
 
     // Start searching within the VPC range, block by block
     let currentBlock = ip.fromLong(ip.toLong(vpcRange.networkAddress));
+    const subnetMask = parseInt(subnetCidrBlocks[0].split('/')[1], 10);
 
     while (availableCidrs.length < requiredCount) {
         const candidateCidr = `${currentBlock}/${subnetMask}`;

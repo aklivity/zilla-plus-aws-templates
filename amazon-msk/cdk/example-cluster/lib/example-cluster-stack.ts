@@ -38,17 +38,29 @@ export class ZillaPlusExampleMskCluster extends cdk.Stack {
     securityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9096), 'Allow Kafka traffic');
 
     const kmsKey = new kms.Key(this, 'MskKmsKey', {
-      enableKeyRotation: true,
-      description: 'KMS key for MSK cluster and Secrets',
+      description: 'KMS key for MSK',
+      enableKeyRotation: false,
+      enabled: true,
     });
 
+    kmsKey.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'Enable IAM User Permissions',
+        effect: cdk.aws_iam.Effect.ALLOW,
+        principals: [new cdk.aws_iam.ArnPrincipal('*')],
+        actions: ['kms:*'],
+        resources: ['*'],
+      })
+    );
     const saslScramSecret = new secretsmanager.Secret(this, 'SaslScramSecret', {
-      secretName: 'AmazonMSK_alice',
-      encryptionKey: kmsKey,
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: 'alice' }),
-        generateStringKey: 'password',
-      },
+      secretName: 'AmazonMSK_alice', // The name of the secret
+      encryptionKey: kmsKey, // Use the KMS key for encryption
+      secretStringValue: cdk.SecretValue.unsafePlainText(
+        JSON.stringify({
+          username: 'alice',
+          password: 'alice-secret', // Replace with the actual secret value
+        })
+      ),
     });
 
     const mskIamRole = new iam.Role(this, 'MskIamRole', {
@@ -90,6 +102,11 @@ export class ZillaPlusExampleMskCluster extends cdk.Stack {
             }
           : {}),
       },
+    });
+
+    new msk.CfnBatchScramSecret(this, 'MyCfnBatchScramSecret', {
+      clusterArn: mskCluster.attrArn,
+      secretArnList: [saslScramSecret.secretArn],
     });
 
     new cdk.CfnOutput(this, 'MskClusterArn', {

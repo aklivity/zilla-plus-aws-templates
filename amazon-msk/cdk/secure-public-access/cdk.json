@@ -17,7 +17,10 @@
     ]
   },
   "context": {
-    "vpcId": "vpc-055d76862d34bfa9e",
+    "vpcId": "<the VPC ID of your MSK cluster>",
+    "mskBootstrapServers": "<The bootstrap servers of your MSK cluster>",
+    "mskClientAuthentication": "mTLS/SASL-SCRAM/Unauthorized",
+    "mskCertificateAuthorityArn": "<your ACM Private Certificate Authority ARN>",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [
