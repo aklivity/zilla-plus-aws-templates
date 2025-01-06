@@ -3,7 +3,6 @@ import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
-import { UserVariables } from './variables';
 import  * as subnetCalculator from './subnet-calculator';
 import Mustache = require("mustache");
 import fs =  require("fs");
@@ -23,20 +22,49 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const userVariables = new UserVariables(this, "main");
+    const mandatoryVariables = [
+      'vpcId',
+      'mskBootstrapServers',
+      'mskClientAuthentication',
+      'publicTlsCertificateKey',
+      'publicWildcardDNS',
+    ];
+    
+    function validateContextKeys(node: import('constructs').Node, keys: string[]): void {
+      const missingKeys = keys.filter((key) => !node.tryGetContext(key));
+      if (missingKeys.length > 0) {
+        throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
+      }
+    }
+    
+    validateContextKeys(this.node, mandatoryVariables);
 
     const vpcId = this.node.tryGetContext('vpcId');
     const mskBootstrapServers = this.node.tryGetContext('mskBootstrapServers');
+    const mskClientAuthentication = this.node.tryGetContext('mskClientAuthentication');
+    const publicTlsCertificateKey = this.node.tryGetContext('publicTlsCertificateKey');
+    const publicWildcardDNS = this.node.tryGetContext('publicWildcardDNS');
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
+    const subnets = vpc.selectSubnets();
+    if (subnets.isPendingLookup) {
+      // return before using the vpc, the cdk will rerun immediately after the lookup
+      return;
+    }
 
-    const internetGateway = new ec2.CfnInternetGateway(this, `InternetGateway-${id}`, {
-      tags: [{ key: 'Name', value: 'my-igw' }],
-    });
+    let igwId = this.node.tryGetContext('igwId');;
+    if (!igwId)
+    {
+      const internetGateway = new ec2.CfnInternetGateway(this, `InternetGateway-${id}`, {
+        tags: [{ key: 'Name', value: 'my-igw' }],
+      });
+      igwId = internetGateway.ref;
+    }
+
 
     new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
       vpcId: vpcId,
-      internetGatewayId: internetGateway.ref,
+      internetGatewayId: igwId,
     });
 
     const publicRouteTable = new ec2.CfnRouteTable(this, `PublicRouteTable-${id}`, {
@@ -47,12 +75,14 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     new ec2.CfnRoute(this, `PublicRoute-${id}`, {
       routeTableId: publicRouteTable.ref,
       destinationCidrBlock: '0.0.0.0/0',
-      gatewayId: internetGateway.ref,
+      gatewayId: igwId,
     });
 
     const existingSubnets = vpc.isolatedSubnets.concat(vpc.publicSubnets, vpc.privateSubnets);
     const existingCidrBlocks = existingSubnets.map((subnet) => subnet.ipv4CidrBlock);
 
+    console.log("vpc.vpcCidrBlock: " + vpc.vpcCidrBlock);
+    console.log("existingCidrBlocks: " + existingCidrBlocks)
     const availableCidrBlocks = subnetCalculator.findAvailableCidrBlocks(
       vpc.vpcCidrBlock,
       existingCidrBlocks,
@@ -80,15 +110,11 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
       subnetIds.push(subnet.ref);
 
-      // Associate the subnet with the provided route table
       new ec2.CfnSubnetRouteTableAssociation(this, `Subnet${i + 1}RouteTableAssociation`, {
         subnetId: subnet.ref,
         routeTableId: publicRouteTable.ref,
       });
     }
-
-
-    const mskClientAuthentication = userVariables.mskClientAuthentication;
 
     const domainParts = mskBootstrapServers.split(',')[0].split(':');
     const serverAddress = domainParts[0];
@@ -99,7 +125,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     const mskWildcardDNS = `*.${mskBootstrapCommonPart}`;
 
     const mTLSEnabled = mskClientAuthentication === 'mTLS';
-    const publicTlsCertificateViaAcm = userVariables.publicTlsCertificateViaAcm;
+    const publicTlsCertificateViaAcm: boolean = publicTlsCertificateKey.startsWith("arn:aws:acm");
 
     const data: TemplateData = {
       name: 'public',
@@ -110,47 +136,20 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
 
     if (mTLSEnabled) {
-      
-      const mskCertificateAuthorityArn = new cdk.CfnParameter(this, 'MskCertificateAuthorityArn', {
-        type: 'String',
-        description: 'ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster',
-      }).valueAsString;
-
-      let publicCertificateAuthority = mskCertificateAuthorityArn;
-      if (userVariables.publicCertificateAuthority) {
-        const publicCertificateAuthorityArn = new cdk.CfnParameter(
-          this,
-          'PublicCertificateAuthorityArn',
-          {
-            type: 'String',
-            description:
-              'ACM Private Certificate Authority ARN used to authorize clients connecting to the Public Zilla Plus',
-            default: mskCertificateAuthorityArn,
-          }
-        ).valueAsString;
-
-        publicCertificateAuthority = publicCertificateAuthorityArn;
-      }
+      validateContextKeys(this.node, ['mskCertificateAuthorityArn']);
+      const mskCertificateAuthorityArn = this.node.tryGetContext('mskCertificateAuthorityArn');
+      const publicCertificateAuthority = this.node.tryGetContext('publicCertificateAuthorityArn') ?? mskCertificateAuthorityArn;
       data.public  = {
         certificateAuthority: publicCertificateAuthority
       }
+      data.msk  = {
+        certificateAuthority: mskCertificateAuthorityArn
+      }
     }
 
-    const publicTlsCertificateKey = new cdk.CfnParameter(this, 'PublicTlsCertificateKey', {
-      type: 'String',
-      description: 'TLS Certificate SecretsManager or CertificateManager ARN',
-    });
+    let zillaPlusRole = this.node.tryGetContext('zillaPlusRoleName');
 
-    let zillaPlusRole: string;
-
-    if (!userVariables.createZillaPlusRole) {
-      const zillaPlusRoleParam = new cdk.CfnParameter(this, 'ZillaPlusRoleName', {
-        type: 'String',
-        description: 'The role name assumed by Zilla Plus instances.',
-      });
-
-      zillaPlusRole = zillaPlusRoleParam.valueAsString;
-    } else {
+    if (!zillaPlusRole) {
       const iamRole = new iam.Role(this, `ZillaPlusRole-${id}`, {
         roleName: `zilla_plus_role-${id}`,
         assumedBy: new iam.CompositePrincipal(
@@ -201,10 +200,16 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
             actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
             resources: ['arn:aws:secretsmanager:*:*:secret:*'],
           }),
+          new iam.PolicyStatement({
+            sid: 'cloudwatchStatement',
+            effect: iam.Effect.ALLOW,
+            actions: ['logs:*', 'cloudwatch:GenerateQuery', 'cloudwatch:PutMetricData'],
+            resources: ['*'],
+          }),
         ],
       });
 
-      if (userVariables.publicTlsCertificateViaAcm) {
+      if (publicTlsCertificateViaAcm) {
         iamPolicy.addStatements(
           new iam.PolicyStatement({
             sid: 's3Statement',
@@ -227,7 +232,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         );
 
         new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
-          certificateArn: publicTlsCertificateKey.valueAsString,
+          certificateArn: publicTlsCertificateKey,
           roleArn: iamRole.roleArn,
         });
       }
@@ -241,17 +246,13 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    let zillaPlusSecurityGroups;
+    let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
 
-    if (!userVariables.createZillaPlusSecurityGroup) {
-      const zillaPlusSecurityGroupsParam = new cdk.CfnParameter(this, 'ZillaPlusSecurityGroups', {
-        type: 'List<AWS::EC2::SecurityGroup::Id>',
-        description: 'The security groups associated with Zilla Plus instances.',
-      });
-      zillaPlusSecurityGroups = cdk.Fn.split(',', zillaPlusSecurityGroupsParam.valueAsString);
+    if (zillaPlusSecurityGroups) {
+      zillaPlusSecurityGroups = cdk.Fn.split(',', zillaPlusSecurityGroups);
     } else {
       const zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
-        vpc: vpcId,
+        vpc: vpc,
         description: 'Security group for Zilla Plus',
         securityGroupName: 'zilla-plus-security-group',
       });
@@ -262,40 +263,20 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
-    const zillaPlusCapacity = new cdk.CfnParameter(this, 'ZillaPlusCapacity', {
-      type: 'Number',
-      default: 2,
-      description: 'The initial number of Zilla Plus instances',
-    });
+    const zillaPlusCapacity = this.node.tryGetContext('zillaPlusCapacity') ?? 2;
 
-    const publicPort = new cdk.CfnParameter(this, 'PublicPort', {
-      type: 'Number',
-      default: 9094,
-      description: 'The public port number to be used by Kafka clients',
-    });
+    const publicPort = this.node.tryGetContext('publicPort') ?? 9094;
 
-    const publicWildcardDNS = new cdk.CfnParameter(this, 'PublicWildcardDNS', {
-      type: 'String',
-      description: 'The public wildcard DNS pattern for bootstrap servers to be used by Kafka clients',
-    });
 
-    if (!userVariables.publicTlsCertificateViaAcm) {
-      cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, 'PublicTlsCertificate', publicTlsCertificateKey.valueAsString);
+    if (!publicTlsCertificateViaAcm) {
+      cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, 'PublicTlsCertificate', publicTlsCertificateKey);
     }
 
-    let keyName: string = '';
-    if (userVariables.sshKeyEnabled) {
-      const sshKeyParam = new cdk.CfnParameter(this, 'ZillaPlusSSHKey', {
-        type: 'String',
-        description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances',
-      });
-      keyName = sshKeyParam.valueAsString;
-    }
-
+    let keyName = this.node.tryGetContext('zillaPlusSSHKey');
     let acmYamlContent = '';
     let enclavesAcmServiceStart = '';
 
-    if (userVariables.publicTlsCertificateViaAcm) {
+    if (publicTlsCertificateViaAcm) {
       acmYamlContent = `
 enclave:
   cpu_count: 2
@@ -308,7 +289,7 @@ tokens:
   - label: acm-token-example
     source:
       Acm:
-        certificate_arn: '${publicTlsCertificateKey.valueAsString}'
+        certificate_arn: '${publicTlsCertificateKey}'
     refresh_interval_secs: 43200
     pin: 1234
 `;
@@ -318,37 +299,39 @@ systemctl start nitro-enclaves-acm.service
 `;
     }
 
-    // CloudWatch Logs and Metrics
-    if (!userVariables.cloudwatchDisabled) {
+    const cloudwatchDisabled = this.node.tryGetContext('cloudwatchDisabled') ?? false;
+
+    if (!cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
+      const logGroupName = this.node.tryGetContext('cloudWatchLogGroupName') ?? defaultLogGroupName;
+      const metricNamespace = this.node.tryGetContext('cloudWatchMetricsNamespace') ?? defaultMetricNamespace;
+
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
-        logGroupName: defaultLogGroupName,
+        logGroupName: logGroupName,
         retention: logs.RetentionDays.ONE_MONTH,
       });
 
-      const cloudWatchMetricsNamespace = defaultMetricNamespace;
+      new logs.LogStream(this, `LogStream-${id}`, {
+        logGroup: cloudWatchLogGroup,
+        logStreamName: 'events',
+      });
 
-      const dataCloudwatch = {
+      data.cloudwatch = {
         logs: {
           group: cloudWatchLogGroup.logGroupName,
         },
         metrics: {
-          namespace: cloudWatchMetricsNamespace,
+          namespace: metricNamespace,
         },
       };
     }
 
-    // Instance Type Parameter
-    const instanceType = new cdk.CfnParameter(this, 'ZillaPlusInstanceType', {
-      type: 'String',
-      default: userVariables.publicTlsCertificateViaAcm ? 'c6i.xlarge' : 't3.small',
-      description: 'Zilla Plus EC2 instance type',
-    });
+    const defaultInstanceType = publicTlsCertificateViaAcm ? 'c6i.xlarge' : 't3.small';
+    const instanceType = this.node.tryGetContext('zillaPlusInstanceType') ?? defaultInstanceType;
 
-    // EC2 Image ID (AMI)
-    let imageId = userVariables.zillaPlusAmi;
+    let imageId =  this.node.tryGetContext('zillaPlusAMI');
     if (!imageId) {
       const ami = ec2.MachineImage.lookup({
         name: 'Aklivity Zilla Plus *',
@@ -387,18 +370,19 @@ systemctl start nitro-enclaves-acm.service
       ],
     });
 
-    const externalHost = ["b-#.", cdk.Fn.select(1, cdk.Fn.split("*.", publicWildcardDNS.valueAsString))].join("");
-    const internalHost = ["b-#.", cdk.Fn.select(1, cdk.Fn.split("*.", mskWildcardDNS))].join("");
+    const externalHost = ["b-#.", publicWildcardDNS.split("*.")[1]].join("");
+    const internalHost = ["b-#.", mskWildcardDNS.split("*.")[1]].join("");    
 
     data.public = {
       ...data.public,
-      port: publicPort.value,
-      tlsCertificateKey: publicTlsCertificateKey.valueAsString,
-      wildcardDNS: publicWildcardDNS.valueAsString
+      port: publicPort,
+      tlsCertificateKey: publicTlsCertificateKey,
+      wildcardDNS: publicWildcardDNS
     }
     data.externalHost = externalHost;
     data.internalHost = internalHost;
     data.msk = {
+      ...data.msk,
       port: mskPort,
       wildcardDNS: mskWildcardDNS
     };
@@ -461,7 +445,7 @@ systemctl start zilla-plus
     const zillaPlusLaunchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
       launchTemplateData: {
         imageId: imageId,
-        instanceType: instanceType.valueAsString,
+        instanceType: instanceType,
         networkInterfaces: [
           {
             associatePublicIpAddress: true,
@@ -484,11 +468,11 @@ systemctl start zilla-plus
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         launchTemplateId: zillaPlusLaunchTemplate.ref,
-        version: ''
+        version: '1'
       },
       minSize: '1',
       maxSize: '5',
-      desiredCapacity: zillaPlusCapacity.valueAsString,
+      desiredCapacity: zillaPlusCapacity.toString(),
       targetGroupArns: [nlbTargetGroup.ref]
     });
 
