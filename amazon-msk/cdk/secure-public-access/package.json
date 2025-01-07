@@ -21,10 +21,6 @@
     "typescript": "~5.5.3"
   },
   "dependencies": {
-    "@aws-cdk/aws-msk-alpha": "2.173.2-alpha.0",
-    "@aws-sdk/client-ec2": "3.713.0",
-    "@aws-sdk/client-kafka": "^3.713.0",
-    "@dotenvx/dotenvx": "^1.6.4",
     "aws-cdk-lib": "^2.173.1",
     "constructs": "^10.0.0",
     "ip": "^2.0.1",

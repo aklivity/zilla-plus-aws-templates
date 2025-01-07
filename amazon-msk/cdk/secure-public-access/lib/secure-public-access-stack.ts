@@ -81,8 +81,6 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     const existingSubnets = vpc.isolatedSubnets.concat(vpc.publicSubnets, vpc.privateSubnets);
     const existingCidrBlocks = existingSubnets.map((subnet) => subnet.ipv4CidrBlock);
 
-    console.log("vpc.vpcCidrBlock: " + vpc.vpcCidrBlock);
-    console.log("existingCidrBlocks: " + existingCidrBlocks)
     const availableCidrBlocks = subnetCalculator.findAvailableCidrBlocks(
       vpc.vpcCidrBlock,
       existingCidrBlocks,
@@ -249,7 +247,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
 
     if (zillaPlusSecurityGroups) {
-      zillaPlusSecurityGroups = cdk.Fn.split(',', zillaPlusSecurityGroups);
+      zillaPlusSecurityGroups = zillaPlusSecurityGroups.split(',');
     } else {
       const zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpc: vpc,
