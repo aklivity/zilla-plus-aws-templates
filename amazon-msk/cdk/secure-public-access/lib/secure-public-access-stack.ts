@@ -81,8 +81,6 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     const existingSubnets = vpc.isolatedSubnets.concat(vpc.publicSubnets, vpc.privateSubnets);
     const existingCidrBlocks = existingSubnets.map((subnet) => subnet.ipv4CidrBlock);
 
-    console.log("vpc.vpcCidrBlock: " + vpc.vpcCidrBlock);
-    console.log("existingCidrBlocks: " + existingCidrBlocks)
     const availableCidrBlocks = subnetCalculator.findAvailableCidrBlocks(
       vpc.vpcCidrBlock,
       existingCidrBlocks,
