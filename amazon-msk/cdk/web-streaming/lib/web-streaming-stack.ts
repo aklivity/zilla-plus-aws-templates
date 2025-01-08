@@ -46,7 +46,6 @@ export class WebStreamingStack extends cdk.Stack {
     }
     validateContextKeys(this.node, mandatoryVariables);
 
-    //vpcId should be under MSK as well?
     const vpcId = this.node.tryGetContext('vpcId');
     const msk = this.node.tryGetContext('msk');
     const mandatoryMSKVariables = [
