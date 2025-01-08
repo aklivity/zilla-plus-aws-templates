@@ -17,21 +17,14 @@
     ]
   },
   "context": {
-    "vpcId": "vpc-0fb4525c5807cb3da",
+    "vpcId": "<your VPC ID>",
     "msk":
     {
-      "bootstrapServers": "b-1.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096,b-2.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096",
-      "credentialsSecretName": "AmazonMSK_alice"  
+      "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
+      "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
     },
-    "publicTlsCertificateKey": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL",
-    "kafkaTopic": "pets",
-    "glueRegistry": "zilla",
-    "igwId": "igw-01120f5157e6fa048",
-    "jwt": {
-      "issuer" : "https://auth.example.com",
-      "audience": "https://api.example.com",
-      "keysUrl": "/tmp/.well_known/jwks.json"
-    },
+    "publicTlsCertificateKey": "<your public tls certificate key ARN>",
+    "kafkaTopic": "<your kafka topic to be exposed on HTTP and SSE>",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

@@ -23,7 +23,7 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## (optional) Create an example MSK cluster
 
-If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and SASL/SCRAM access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later.
 
 ## Required Terraform Variables
 
