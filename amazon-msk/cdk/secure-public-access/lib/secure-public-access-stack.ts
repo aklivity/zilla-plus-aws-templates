@@ -351,14 +351,14 @@ systemctl start nitro-enclaves-acm.service
 
     const nlbTargetGroup = new elbv2.CfnTargetGroup(this, `NLBTargetGroup-${id}`, {
       name: `nlb-tg-${id}`,
-      port: Number(instanceType.default || 9094),
+      port: publicPort,
       protocol: 'TCP',
       vpcId: vpcId,
     });
 
     new elbv2.CfnListener(this, `NLBListener-${id}`, {
       loadBalancerArn: nlb.ref,
-      port: Number(instanceType.default || 9094),
+      port: publicPort,
       protocol: 'TCP',
       defaultActions: [
         {
