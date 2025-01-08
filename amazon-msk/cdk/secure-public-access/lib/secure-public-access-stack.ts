@@ -252,7 +252,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       const zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpc: vpc,
         description: 'Security group for Zilla Plus',
-        securityGroupName: 'zilla-plus-security-group',
+        securityGroupName: `zilla-plus-security-group-${id}`,
       });
 
       zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9096), 'Allow inbound traffic on Kafka ports');

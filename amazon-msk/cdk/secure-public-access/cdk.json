@@ -20,9 +20,8 @@
     "vpcId": "vpc-0fb4525c5807cb3da",
     "mskBootstrapServers": "b-1.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096,b-2.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096",
     "mskClientAuthentication": "SASL/SCRAM",
-    "mskCertificateAuthorityArn": "arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b60947c4-4149-486e-81dc-de71efff6637",
     "publicWildcardDNS": "*.example.aklivity.io",
-    "publicTlsCertificateKey": "arn:aws:acm:us-east-1:445711703002:certificate/a63b238e-6055-490a-a7b8-16e6c5dd8fe4",
+    "publicTlsCertificateKey": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import { Construct, Node } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
@@ -25,24 +25,37 @@ export class WebStreamingStack extends cdk.Stack {
 
     const mandatoryVariables = [
       'vpcId',
-      'mskBootstrapServers',
-      'mskCredentialsSecretName',
+      'msk',
       'publicTlsCertificateKey',
       'kafkaTopic',
     ];
     
-    function validateContextKeys(node: import('constructs').Node, keys: string[]): void {
-      const missingKeys = keys.filter((key) => !node.tryGetContext(key));
+    function validateContextKeys(node:  | object, keys: string[]): void {
+      const missingKeys = [];
+
+      if (node instanceof Node) {
+        missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
+      } else if (typeof node === 'object' && node !== null) {
+        missingKeys.push(...keys.filter((key) => !(key in node)));
+      } else {
+        throw new Error(`Invalid node type. Must be either a constructs.Node or a JSON object.`);
+      }
       if (missingKeys.length > 0) {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
-    
     validateContextKeys(this.node, mandatoryVariables);
 
+    //vpcId should be under MSK as well?
     const vpcId = this.node.tryGetContext('vpcId');
-    const mskBootstrapServers = this.node.tryGetContext('mskBootstrapServers');
-    const mskCredentialsSecretName = this.node.tryGetContext('mskCredentialsSecretName');
+    const msk = this.node.tryGetContext('msk');
+    const mandatoryMSKVariables = [
+      'bootstrapServers',
+      'credentialsSecretName'
+    ];
+    validateContextKeys(msk, mandatoryMSKVariables);
+    const mskBootstrapServers = msk.bootstrapServers;
+    const mskCredentialsSecretName = msk.credentialsSecretName;
     const publicTlsCertificateKey = this.node.tryGetContext('publicTlsCertificateKey');
     const kafkaTopic = this.node.tryGetContext('kafkaTopic');
 
@@ -63,13 +76,13 @@ export class WebStreamingStack extends cdk.Stack {
         tags: [{ key: 'Name', value: 'my-igw' }],
       });
       igwId = internetGateway.ref;
+
+      new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
+        vpcId: vpcId,
+        internetGatewayId: igwId,
+      });
     }
 
-
-    new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
-      vpcId: vpcId,
-      internetGatewayId: igwId,
-    });
 
     const publicRouteTable = new ec2.CfnRouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpcId,
@@ -187,6 +200,8 @@ export class WebStreamingStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
+    const publicPort = this.node.tryGetContext('publicTCPPort') ?? 7143;
+
     let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
 
     if (zillaPlusSecurityGroups) {
@@ -195,19 +210,250 @@ export class WebStreamingStack extends cdk.Stack {
       const zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpc: vpc,
         description: 'Security group for Zilla Plus',
-        securityGroupName: 'zilla-plus-security-group',
+        securityGroupName: `zilla-plus-security-group-${id}`,
       });
 
-      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9096), 'Allow inbound traffic on Kafka ports');
-      zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp(), 'Allow all outbound TCP traffic');
+      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(publicPort));
+      zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp());
 
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
     const zillaPlusCapacity = this.node.tryGetContext('zillaPlusCapacity') ?? 2;
+    const keyName = this.node.tryGetContext('zillaPlusSSHKey');
+    const instanceType = this.node.tryGetContext('zillaPlusInstanceType') ?? 't3.small';
 
-    const publicPort = this.node.tryGetContext('publicPort') ?? 9094;
+    let imageId =  this.node.tryGetContext('zillaPlusAMI');
+    if (!imageId) {
+      const ami = ec2.MachineImage.lookup({
+        name: 'Aklivity Zilla Plus *',
+        filters: {
+          'product-code': ['ca5mgk85pjtbyuhtfluzisgzy'],
+          'is-public': ['true'],
+        },
+      });
+      imageId = ami.getImage(this).imageId;
+    }
 
+
+    const data: TemplateData = {
+      name: 'web',
+    }
+
+    const jwt = this.node.tryGetContext('jwt');
+    if (jwt)
+    {
+      const mandatoryJWTVariables = [
+        'issuer',
+        'audience',
+        'keysUrl'
+      ];
+      validateContextKeys(jwt, mandatoryJWTVariables);
+      const issuer = jwt.issuer;
+      const audience = jwt.audience;
+      const keysUrl = jwt.keysUrl;
+
+      data.jwt = {
+        issuer: issuer,
+        audience: audience,
+        keysUrl: keysUrl
+      }
+    }
+
+    const cloudwatchDisabled = this.node.tryGetContext('cloudwatchDisabled') ?? false;
+
+    if (!cloudwatchDisabled) {
+      const defaultLogGroupName = `${id}-group`;
+      const defaultMetricNamespace = `${id}-namespace`;
+
+      const logGroupName = this.node.tryGetContext('cloudWatchLogGroupName') ?? defaultLogGroupName;
+      const metricNamespace = this.node.tryGetContext('cloudWatchMetricsNamespace') ?? defaultMetricNamespace;
+
+      const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
+        logGroupName: logGroupName,
+        retention: logs.RetentionDays.ONE_MONTH,
+      });
+
+      new logs.LogStream(this, `LogStream-${id}`, {
+        logGroup: cloudWatchLogGroup,
+        logStreamName: 'events',
+      });
+
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogGroup.logGroupName,
+        },
+        metrics: {
+          namespace: metricNamespace,
+        },
+      };
+    }
+
+    const glueRegistry = this.node.tryGetContext('glueRegistry');
+    if (glueRegistry)
+    {
+      data.glue = {
+        registry: glueRegistry
+      }
+    }
+
+    const nlb = new elbv2.CfnLoadBalancer(this, `NetworkLoadBalancer-${id}`, {
+      name: `nlb-${id}`,
+      scheme: 'internet-facing',
+      subnets: subnetIds,
+      type: 'network',
+      ipAddressType: 'ipv4',
+    });
+
+    const nlbTargetGroup = new elbv2.CfnTargetGroup(this, `NLBTargetGroup-${id}`, {
+      name: `nlb-tg-${id}`,
+      port: publicPort,
+      protocol: 'TCP',
+      vpcId: vpcId,
+    });
+
+    new elbv2.CfnListener(this, `NLBListener-${id}`, {
+      loadBalancerArn: nlb.ref,
+      port: publicPort,
+      protocol: 'TCP',
+      defaultActions: [
+        {
+          type: 'forward',
+          targetGroupArn: nlbTargetGroup.ref,
+        },
+      ],
+    });
+    
+    const kafkaSaslUsername = `\${{aws.secrets.${mskCredentialsSecretName}#username}}`;
+    const kafkaSaslPassword = `\${{aws.secrets.${mskCredentialsSecretName}#password}}`;
+    const kafkaBootstrapServers = `['${mskBootstrapServers.split(",").join("','")}']`;
+
+    data.kafka = {
+      bootstrapServers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
+    }
+    data.public = {
+      port: publicPort,
+      tlsCertificateKey: publicTlsCertificateKey
+    }
+    data.path = path;
+    data.topic = kafkaTopic;
+
+    const kafkaTopicCreationDisabled = this.node.tryGetContext('kafkaTopicCreationDisabled') ?? false;
+
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
+    const renderedYaml: string = Mustache.render(yamlTemplate, data);
+
+    const cfnHupConfContent = `
+[main]
+stack=${id}
+region=${this.region}
+    `;
+
+    const cfnAutoReloaderConfContent = `
+[cfn-auto-reloader-hook]
+triggers=post.update
+path=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init
+action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${this.region}
+runas=root
+    `;
+
+    let kafkaTopicCreationCommand = "";
+
+    if (!kafkaTopicCreationDisabled) {
+      kafkaTopicCreationCommand = `
+wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
+tar -xzf kafka_2.13-3.5.1.tgz
+cd kafka_2.13-3.5.1/libs
+wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
+cd ../bin
+SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskCredentialsSecretName} --query SecretString --output text)
+USERNAME=$(echo $SECRET_STRING | jq -r '.username')
+PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
+
+cat <<EOF> client.properties
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
+security.protocol=SASL_SSL
+sasl.mechanism=SCRAM-SHA-512
+EOF
+./kafka-topics.sh --create --if-not-exists --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopic} --config 'cleanup.policy=compact'
+  `;
+    }
+
+    const userData = `#!/bin/bash -xe
+yum update -y aws-cfn-bootstrap
+cat <<'END_HELP' > /etc/zilla/zilla.yaml
+${renderedYaml}
+END_HELP
+
+chown ec2-user:ec2-user /etc/zilla/zilla.yaml
+
+mkdir /etc/cfn
+cat <<EOF > /etc/cfn/cfn-hup.conf
+${cfnHupConfContent}
+EOF
+
+chown root:root /etc/cfn/cfn-hup.conf
+chmod 0400 /etc/cfn/cfn-hup.conf
+
+mkdir /etc/cfn/hooks.d
+cat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf
+${cfnAutoReloaderConfContent}
+EOF
+
+chown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf
+chmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+systemctl enable cfn-hup
+systemctl start cfn-hup
+systemctl enable amazon-ssm-agent
+systemctl start amazon-ssm-agent
+systemctl enable zilla-plus
+systemctl start zilla-plus
+
+${kafkaTopicCreationCommand}
+
+    `;
+
+    const zillaPlusLaunchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
+      launchTemplateData: {
+        imageId: imageId,
+        instanceType: instanceType,
+        networkInterfaces: [
+          {
+            associatePublicIpAddress: true,
+            deviceIndex: 0,
+            groups: zillaPlusSecurityGroups,
+          },
+        ],
+        iamInstanceProfile: {
+          name: zillaPlusRole,
+        },
+        keyName: keyName,
+        userData: cdk.Fn.base64(userData)
+      },
+    });
+
+    new autoscaling.CfnAutoScalingGroup(this, `ZillaPlusGroup-${id}`, {
+      vpcZoneIdentifier: subnetIds,
+      launchTemplate: {
+        launchTemplateId: zillaPlusLaunchTemplate.ref,
+        version: '1'
+      },
+      minSize: '1',
+      maxSize: '5',
+      desiredCapacity: zillaPlusCapacity.toString(),
+      targetGroupArns: [nlbTargetGroup.ref]
+    });
+
+    new cdk.CfnOutput(this, 'NetworkLoadBalancerOutput', 
+    { 
+      description: "Public DNS name of newly created NLB for Zilla Plus",
+      value: nlb.attrDnsName 
+    });
 
   }
 }
