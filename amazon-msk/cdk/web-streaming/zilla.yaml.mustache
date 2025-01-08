@@ -7,9 +7,9 @@ guards:
   auth_jwt:
     type: jwt
     options:
-      issuer: {{jwt.issuer}}
-      audience: {{jwt.audience}}
-      keys: {{jwt.keysUrl}}
+      issuer: {{{jwt.issuer}}}
+      audience: {{{jwt.audience}}}
+      keys: {{{jwt.keysUrl}}}
 {{/jwt}}
 {{#glue}}
 catalogs:
