@@ -59,13 +59,12 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         tags: [{ key: 'Name', value: 'my-igw' }],
       });
       igwId = internetGateway.ref;
+
+      new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
+        vpcId: vpcId,
+        internetGatewayId: igwId,
+      });
     }
-
-
-    new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
-      vpcId: vpcId,
-      internetGatewayId: igwId,
-    });
 
     const publicRouteTable = new ec2.CfnRouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpcId,
@@ -247,7 +246,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
 
     if (zillaPlusSecurityGroups) {
-      zillaPlusSecurityGroups = cdk.Fn.split(',', zillaPlusSecurityGroups);
+      zillaPlusSecurityGroups = zillaPlusSecurityGroups.split(',');
     } else {
       const zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
         vpc: vpc,
@@ -351,14 +350,14 @@ systemctl start nitro-enclaves-acm.service
 
     const nlbTargetGroup = new elbv2.CfnTargetGroup(this, `NLBTargetGroup-${id}`, {
       name: `nlb-tg-${id}`,
-      port: Number(instanceType.default || 9094),
+      port: publicPort,
       protocol: 'TCP',
       vpcId: vpcId,
     });
 
     new elbv2.CfnListener(this, `NLBListener-${id}`, {
       loadBalancerArn: nlb.ref,
-      port: Number(instanceType.default || 9094),
+      port: publicPort,
       protocol: 'TCP',
       defaultActions: [
         {
