@@ -59,13 +59,12 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         tags: [{ key: 'Name', value: 'my-igw' }],
       });
       igwId = internetGateway.ref;
+
+      new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
+        vpcId: vpcId,
+        internetGatewayId: igwId,
+      });
     }
-
-
-    new ec2.CfnVPCGatewayAttachment(this, `VpcGatewayAttachment-${id}`, {
-      vpcId: vpcId,
-      internetGatewayId: igwId,
-    });
 
     const publicRouteTable = new ec2.CfnRouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpcId,
