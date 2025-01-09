@@ -260,14 +260,14 @@ export class WebStreamingStack extends cdk.Stack {
     }
 
     const cloudwatch = zillaPlusContext.cloudwatch;
-    const cloudwatchDisabled = cloudwatch.disabled ?? false;
+    const cloudwatchDisabled = cloudwatch?.disabled ?? false;
 
     if (!cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = cloudwatch.logGroupName ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch.metricsNamespace ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch?.logGroupName ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch?.metricsNamespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,

@@ -1,0 +1,115 @@
+name: {{name}}
+vaults:
+  secure:
+    type: aws-secrets
+telemetry:
+  metrics:
+    - stream.active.received
+    - stream.active.sent
+    - stream.opens.received
+    - stream.opens.sent
+    - stream.data.received
+    - stream.data.sent
+    - stream.errors.received
+    - stream.errors.sent
+    - stream.closes.received
+    - stream.closes.sent
+  exporters:
+    stdout_logs_exporter:
+      type: stdout
+{{#cloudwatch}}
+    aws0:
+      type: aws-cloudwatch
+      options:
+        logs:
+          group: {{cloudwatch.logs.group}}
+          stream: events
+        metrics:
+          namespace: {{cloudwatch.metrics.namespace}}
+{{/cloudwatch}}
+bindings:
+  tcp_server:
+    type: tcp
+    kind: server
+    options:
+      host: 0.0.0.0
+      port: {{public.port}}
+    telemetry:
+      metrics:
+        - stream.*
+    exit: tls_server
+  tls_server:
+    type: tls
+    kind: server
+    vault: secure
+    options:
+      keys:
+        - {{public.tlsCertificateKey}}
+    telemetry:
+      metrics:
+        - stream.*
+    exit: mqtt_server
+  mqtt_server:
+    type: mqtt
+    kind: server
+    telemetry:
+      metrics:
+        - stream.*
+    exit: mqtt_kafka_mapping
+  mqtt_kafka_mapping:
+    type: mqtt-kafka
+    kind: proxy
+    options:
+      topics:
+        sessions: {{topics.sessions}}
+        messages: {{topics.messages}}
+        retained: {{topics.retained}}
+    telemetry:
+      metrics:
+        - stream.*
+    exit: kafka_cache_client
+  kafka_cache_client:
+    type: kafka
+    kind: cache_client
+    telemetry:
+      metrics:
+        - stream.*
+    exit: kafka_cache_server
+  kafka_cache_server:
+    type: kafka
+    kind: cache_server
+    options:
+      bootstrap:
+        - {{topics.messages}}
+        - {{topics.retained}}
+    telemetry:
+      metrics:
+        - stream.*
+    exit: kafka_client
+  kafka_client:
+    type: kafka
+    kind: client
+    options:
+      servers: {{{kafka.bootstrapServers}}}
+      sasl:
+        mechanism: scram-sha-512
+        username: '{{kafka.sasl.username}}'
+        password: '{{kafka.sasl.password}}'
+    telemetry:
+      metrics:
+        - stream.*
+    exit: tls_client
+  tls_client:
+    type: tls
+    kind: client
+    vault: secure
+    telemetry:
+      metrics:
+        - stream.*
+    exit: tcp_client
+  tcp_client:
+    type: tcp
+    kind: client
+    telemetry:
+      metrics:
+        - stream.*

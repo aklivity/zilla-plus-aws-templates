@@ -36,7 +36,6 @@ interface TemplateData {
   public?: object;
   topics?: object;
   kafka?: object;
-
 }
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
@@ -181,10 +180,6 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       description: 'The Kafka topic storing MQTT retained, cleanup policy "compact"',
       default: "mqtt-retained",
     });
-
-    const secretValue = Fn.jsondecode(secret.secretString);
-    const username = Fn.lookup(secretValue, "username");
-    const password = Fn.lookup(secretValue, "password");
 
     const bootstrapBrokers = [Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0)];
 
@@ -474,8 +469,12 @@ tar -xzf kafka_2.13-3.5.1.tgz
 cd kafka_2.13-3.5.1/libs
 wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
 cd ../bin
+SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskAccessCredentialsName.stringValue} --query SecretString --output text)
+USERNAME=$(echo $SECRET_STRING | jq -r '.username')
+PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
+
 cat <<'END_HELP'> client.properties
-sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username='${username}' password='${password}';
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
 END_HELP
