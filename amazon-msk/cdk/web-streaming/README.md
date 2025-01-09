@@ -153,12 +153,18 @@ Note down the security group IDs (GroupId) of the desired security groups.
     "cloudwatch":
     {
         "disable": false,
-        "logGroupName": "<your cloudwatch log group name>",
-        "metricsNamespace": "<your cloudwatch metrics namespace>"
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
     }
 ```
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatchDisabled` context variable to `true`.
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
@@ -172,7 +178,7 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logGroupName` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -180,7 +186,7 @@ In your `cdk.json` file add the desired CloudWatch Logs Group for variable name 
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metricsNamespace` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable JWT Access Tokens
 

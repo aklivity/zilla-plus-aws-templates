@@ -266,8 +266,8 @@ export class WebStreamingStack extends cdk.Stack {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = cloudwatch?.logGroupName ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch?.metricsNamespace ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
