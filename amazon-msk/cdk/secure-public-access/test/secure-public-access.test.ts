@@ -31,13 +31,22 @@ test('Secure Public Access Stack created', () => {
                         ]
                       }
                     ]
-                  },                
-                "vpcId": "vpc-12345",
-                "mskBootstrapServers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
-                "mskClientAuthentication": "SASL/SCRAM",
-                "mskCertificateAuthorityArn": "arn:aws:acm-pca:us-east-1:****:certificate-authority/*********",
-                "publicWildcardDNS": "*.example.aklivity.io",
-                "publicTlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********",
+                  },   
+                "zilla-plus":
+                {
+                    "vpcId": "vpc-12345",
+                    "msk":
+                    {
+                        "bootstrapServers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
+                        "clientAuthentication": "SASL/SCRAM",
+                        "certificateAuthorityArn": "arn:aws:acm-pca:us-east-1:****:certificate-authority/*********",
+                    },
+                    "public":
+                    {
+                        "wildcardDNS": "*.example.aklivity.io",
+                        "tlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********"
+                    }
+                }
             }
         }
     );

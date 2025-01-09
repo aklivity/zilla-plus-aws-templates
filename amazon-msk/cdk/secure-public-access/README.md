@@ -188,8 +188,8 @@ Note down the ARN of the ACM Private Certificate Authority you want to use.
     "cloudwatch":
     {
         "disable": false,
-        "logGroupName": "<your public tls certificate key ARN>",
-        "port": "<your public port>"
+        "logGroupName": "<your cloudwatch log group name>",
+        "metricsNamespace": "<your cloudwatch metrics namespace>"
     }
 ```
 
