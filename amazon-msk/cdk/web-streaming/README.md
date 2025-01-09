@@ -27,7 +27,7 @@ If you don't have an existing MSK cluster you can use our example MSK deployment
 
 ## Required CDK Context Variables
 
-You can set these variables in your `context` in `cdk.json` file.
+You can set these variables in your `context` in `cdk.json` file under `zilla-plus` object.
 
 ### `vpcId`: VPC ID
 The VPC ID where the MSK cluster lives. The stack will add Public Subnets and Internet Gateway and run Zilla Plus on the provided VPC.
@@ -86,13 +86,13 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-### `zillaPlusCapacity`: Zilla Plus Capacity
+### `capacity`: Zilla Plus Capacity
 
 > Default: `2`
 
 This variable defines the initial number of Zilla Plus instances.
 
-### `zillaPlusInstanceType`: Zilla Plus EC2 Instance Type
+### `instanceType`: Zilla Plus EC2 Instance Type
 
 > Default: `t3.small`
 
@@ -110,7 +110,7 @@ These features all have default values and can be configured using cdk context v
 
 ### Internet Gateway ID
 
-If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable. If not set the deployment will attempt to create on in the VPC.
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdk.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
 
 To query the igwId of your MSK's VPN use the following command:
 ```bash
@@ -125,7 +125,7 @@ To enable a custom path for the Kafka topic, set the context variable `customPat
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `zillaPlusRoleName` context variable in your `cdk.json`.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all IAM roles:
 
@@ -137,7 +137,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `zillaPlusSecurityGroups` context variable in your `cdk.json`.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdk.json`.
 
 List all security groups:
 
@@ -147,7 +147,16 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-### Disable CloudWatch Integration
+#### CloudWatch Integration
+
+```json
+    "cloudwatch":
+    {
+        "disable": false,
+        "logGroupName": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
 
 By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatchDisabled` context variable to `true`.
 
@@ -156,22 +165,22 @@ You can create or use existing log groups and metric namespaces in CloudWatch.
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
 If you want to define your own, follow these steps.
 
-#### List All CloudWatch Log Groups (cloudwatch_logs_group)
+#### List All CloudWatch Log Groups
 
 ```bash
 aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `cloudWatchLogGroupName`
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logGroupName` under `zilla-plus` object in the `cloudwatch` variables section.
 
-#### List All CloudWatch Custom Metric Namespaces (cloudwatch_metrics_namespace)
+#### List All CloudWatch Custom Metric Namespaces
 
 ```bash
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `cloudWatchMetricsNamespace`
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metricsNamespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable JWT Access Tokens
 
@@ -201,7 +210,7 @@ Note down the Glue Registry name (RegistryName) you want to use.
 
 ### Enable SSH Access
 
-To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `zillaPlusSSHKey` context variable.
+To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `sshKey` context variable.
 
 List all EC2 KeyPairs:
 

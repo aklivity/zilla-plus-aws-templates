@@ -32,7 +32,6 @@ test('Secure Public Access Stack created', () => {
                       }
                     ]
                   },                
-                "isTest": "true",
                 "vpcId": "vpc-12345",
                 "mskBootstrapServers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
                 "mskClientAuthentication": "SASL/SCRAM",

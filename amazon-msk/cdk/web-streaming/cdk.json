@@ -17,14 +17,17 @@
     ]
   },
   "context": {
-    "vpcId": "<your VPC ID>",
-    "msk":
+    "zilla-plus":
     {
-      "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
-      "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+      "vpcId": "<your VPC ID>",
+      "msk":
+      {
+        "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
+        "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+      },
+      "publicTlsCertificateKey": "<your public tls certificate key ARN>",
+      "kafkaTopic": "<your kafka topic to be exposed on HTTP and SSE>"
     },
-    "publicTlsCertificateKey": "<your public tls certificate key ARN>",
-    "kafkaTopic": "<your kafka topic to be exposed on HTTP and SSE>",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

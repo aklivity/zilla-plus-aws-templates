@@ -17,11 +17,26 @@
     ]
   },
   "context": {
-    "vpcId": "<your VPC ID>",
-    "mskBootstrapServers": "<Bootstrap Servers of your MSK cluster",
-    "mskClientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]",
-    "publicWildcardDNS": "<your public wildcard dns>",
-    "publicTlsCertificateKey": "<your public tls certificate key ARN>",
+    "zilla-plus":
+    {
+      "vpcId": "<your VPC ID>",
+      "msk":
+      {
+        "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
+        "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
+      },
+      "public":
+      {
+        "wildcardDNS": "<your public wildcard dns>",
+        "tlsCertificateKey": "<your public tls certificate key ARN>"
+      },
+      "cloudwatch":
+      {
+        "disabled": false,
+        "logGroupName": "zilla-plus-spa-loggroup",
+        "metricsNamespace": "zilla-plus-spa-metrics"
+      }
+    },
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

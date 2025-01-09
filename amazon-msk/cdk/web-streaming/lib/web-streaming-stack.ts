@@ -30,9 +30,8 @@ export class WebStreamingStack extends cdk.Stack {
       'kafkaTopic',
     ];
     
-    function validateContextKeys(node:  | object, keys: string[]): void {
+    function validateContextKeys(node: object, keys: string[]): void {
       const missingKeys = [];
-
       if (node instanceof Node) {
         missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
       } else if (typeof node === 'object' && node !== null) {
@@ -44,10 +43,11 @@ export class WebStreamingStack extends cdk.Stack {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
-    validateContextKeys(this.node, mandatoryVariables);
 
-    const vpcId = this.node.tryGetContext('vpcId');
-    const msk = this.node.tryGetContext('msk');
+    const zillaPlusContext = this.node.tryGetContext('zilla-plus');
+    validateContextKeys(zillaPlusContext, mandatoryVariables);
+    const vpcId = zillaPlusContext.vpcId;
+    const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
       'bootstrapServers',
       'credentialsSecretName'
@@ -55,10 +55,10 @@ export class WebStreamingStack extends cdk.Stack {
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.bootstrapServers;
     const mskCredentialsSecretName = msk.credentialsSecretName;
-    const publicTlsCertificateKey = this.node.tryGetContext('publicTlsCertificateKey');
-    const kafkaTopic = this.node.tryGetContext('kafkaTopic');
+    const publicTlsCertificateKey = zillaPlusContext.publicTlsCertificateKey;
+    const kafkaTopic = zillaPlusContext.kafkaTopic;
 
-    const customPath = this.node.tryGetContext('customPath');
+    const customPath = zillaPlusContext.customPath;
     const path = customPath ?? `/${kafkaTopic}`;
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
@@ -68,7 +68,7 @@ export class WebStreamingStack extends cdk.Stack {
       return;
     }
 
-    let igwId = this.node.tryGetContext('igwId');;
+    let igwId = zillaPlusContext.igwId;;
     if (!igwId)
     {
       const internetGateway = new ec2.CfnInternetGateway(this, `InternetGateway-${id}`, {
@@ -130,7 +130,7 @@ export class WebStreamingStack extends cdk.Stack {
       });
     }
 
-    let zillaPlusRole = this.node.tryGetContext('zillaPlusRoleName');
+    let zillaPlusRole = zillaPlusContext.roleName;
 
     if (!zillaPlusRole) {
       const iamRole = new iam.Role(this, `ZillaPlusRole-${id}`, {
@@ -199,9 +199,9 @@ export class WebStreamingStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    const publicPort = this.node.tryGetContext('publicTCPPort') ?? 7143;
+    const publicPort = zillaPlusContext.publicPort ?? 7143;
 
-    let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
+    let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 
     if (zillaPlusSecurityGroups) {
       zillaPlusSecurityGroups = zillaPlusSecurityGroups.split(',');
@@ -218,11 +218,11 @@ export class WebStreamingStack extends cdk.Stack {
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
-    const zillaPlusCapacity = this.node.tryGetContext('zillaPlusCapacity') ?? 2;
-    const keyName = this.node.tryGetContext('zillaPlusSSHKey');
-    const instanceType = this.node.tryGetContext('zillaPlusInstanceType') ?? 't3.small';
+    const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
+    const keyName = zillaPlusContext.sshKey;
+    const instanceType = zillaPlusContext.instanceType ?? 't3.small';
 
-    let imageId =  this.node.tryGetContext('zillaPlusAMI');
+    let imageId =  zillaPlusContext.ami;
     if (!imageId) {
       const ami = ec2.MachineImage.lookup({
         name: 'Aklivity Zilla Plus *',
@@ -239,7 +239,7 @@ export class WebStreamingStack extends cdk.Stack {
       name: 'web',
     }
 
-    const jwt = this.node.tryGetContext('jwt');
+    const jwt = zillaPlusContext.jwt;
     if (jwt)
     {
       const mandatoryJWTVariables = [
@@ -259,14 +259,15 @@ export class WebStreamingStack extends cdk.Stack {
       }
     }
 
-    const cloudwatchDisabled = this.node.tryGetContext('cloudwatchDisabled') ?? false;
+    const cloudwatch = zillaPlusContext.cloudwatch;
+    const cloudwatchDisabled = cloudwatch.disabled ?? false;
 
     if (!cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = this.node.tryGetContext('cloudWatchLogGroupName') ?? defaultLogGroupName;
-      const metricNamespace = this.node.tryGetContext('cloudWatchMetricsNamespace') ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch.logGroupName ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch.metricsNamespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
@@ -288,7 +289,7 @@ export class WebStreamingStack extends cdk.Stack {
       };
     }
 
-    const glueRegistry = this.node.tryGetContext('glueRegistry');
+    const glueRegistry = zillaPlusContext.glueRegistry;
     if (glueRegistry)
     {
       data.glue = {
@@ -341,7 +342,7 @@ export class WebStreamingStack extends cdk.Stack {
     data.path = path;
     data.topic = kafkaTopic;
 
-    const kafkaTopicCreationDisabled = this.node.tryGetContext('kafkaTopicCreationDisabled') ?? false;
+    const kafkaTopicCreationDisabled = zillaPlusContext.kafkaTopicCreationDisabled ?? false;
 
     const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);

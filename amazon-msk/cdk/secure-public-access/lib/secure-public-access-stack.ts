@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import { Construct, Node } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
@@ -24,26 +24,45 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
     const mandatoryVariables = [
       'vpcId',
-      'mskBootstrapServers',
-      'mskClientAuthentication',
-      'publicTlsCertificateKey',
-      'publicWildcardDNS',
+      'msk',
+      'public'
     ];
     
-    function validateContextKeys(node: import('constructs').Node, keys: string[]): void {
-      const missingKeys = keys.filter((key) => !node.tryGetContext(key));
+    function validateContextKeys(node:  | object, keys: string[]): void {
+      const missingKeys = [];
+      if (node instanceof Node) {
+        missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
+      } else if (typeof node === 'object' && node !== null) {
+        missingKeys.push(...keys.filter((key) => !(key in node)));
+      } else {
+        throw new Error(`Invalid node type. Must be either a constructs.Node or a JSON object.`);
+      }
       if (missingKeys.length > 0) {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
     
-    validateContextKeys(this.node, mandatoryVariables);
+    const zillaPlusContext = this.node.tryGetContext('zilla-plus');
+    validateContextKeys(zillaPlusContext, mandatoryVariables);
 
-    const vpcId = this.node.tryGetContext('vpcId');
-    const mskBootstrapServers = this.node.tryGetContext('mskBootstrapServers');
-    const mskClientAuthentication = this.node.tryGetContext('mskClientAuthentication');
-    const publicTlsCertificateKey = this.node.tryGetContext('publicTlsCertificateKey');
-    const publicWildcardDNS = this.node.tryGetContext('publicWildcardDNS');
+    const vpcId = zillaPlusContext.vpcId;
+    const msk = zillaPlusContext.msk;
+    const mandatoryMSKVariables = [
+      'bootstrapServers',
+      'clientAuthentication'
+    ];
+    validateContextKeys(msk, mandatoryMSKVariables);
+    const mskBootstrapServers = msk.bootstrapServers;
+    const mskClientAuthentication = msk.clientAuthentication;
+
+    const publicVar = zillaPlusContext.public;
+    const mandatoryPublicVariables = [
+      'tlsCertificateKey',
+      'wildcardDNS'
+    ];
+    validateContextKeys(publicVar, mandatoryPublicVariables);
+    const publicTlsCertificateKey = publicVar.tlsCertificateKey;
+    const publicWildcardDNS = publicVar.wildcardDNS;
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
     const subnets = vpc.selectSubnets();
@@ -52,7 +71,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       return;
     }
 
-    let igwId = this.node.tryGetContext('igwId');;
+    let igwId = zillaPlusContext.igwId;
     if (!igwId)
     {
       const internetGateway = new ec2.CfnInternetGateway(this, `InternetGateway-${id}`, {
@@ -133,9 +152,9 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
 
     if (mTLSEnabled) {
-      validateContextKeys(this.node, ['mskCertificateAuthorityArn']);
-      const mskCertificateAuthorityArn = this.node.tryGetContext('mskCertificateAuthorityArn');
-      const publicCertificateAuthority = this.node.tryGetContext('publicCertificateAuthorityArn') ?? mskCertificateAuthorityArn;
+      validateContextKeys(msk, ['certificateAuthorityArn']);
+      const mskCertificateAuthorityArn = msk.certificateAuthorityArn;
+      const publicCertificateAuthority = publicVar.certificateAuthorityArn ?? mskCertificateAuthorityArn;
       data.public  = {
         certificateAuthority: publicCertificateAuthority
       }
@@ -144,7 +163,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       }
     }
 
-    let zillaPlusRole = this.node.tryGetContext('zillaPlusRoleName');
+    let zillaPlusRole = zillaPlusContext.roleName;
 
     if (!zillaPlusRole) {
       const iamRole = new iam.Role(this, `ZillaPlusRole-${id}`, {
@@ -243,7 +262,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    let zillaPlusSecurityGroups = this.node.tryGetContext('zillaPlusSecurityGroups');
+    let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 
     if (zillaPlusSecurityGroups) {
       zillaPlusSecurityGroups = zillaPlusSecurityGroups.split(',');
@@ -260,16 +279,16 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
-    const zillaPlusCapacity = this.node.tryGetContext('zillaPlusCapacity') ?? 2;
+    const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
 
-    const publicPort = this.node.tryGetContext('publicPort') ?? 9094;
+    const publicPort = publicVar.port ?? 9094;
 
 
     if (!publicTlsCertificateViaAcm) {
       cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, 'PublicTlsCertificate', publicTlsCertificateKey);
     }
 
-    let keyName = this.node.tryGetContext('zillaPlusSSHKey');
+    let keyName = zillaPlusContext.sshKey;
     let acmYamlContent = '';
     let enclavesAcmServiceStart = '';
 
@@ -296,14 +315,15 @@ systemctl start nitro-enclaves-acm.service
 `;
     }
 
-    const cloudwatchDisabled = this.node.tryGetContext('cloudwatchDisabled') ?? false;
+    const cloudwatch = zillaPlusContext.cloudwatch;
+    const cloudwatchDisabled = cloudwatch.disabled ?? false;
 
     if (!cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = this.node.tryGetContext('cloudWatchLogGroupName') ?? defaultLogGroupName;
-      const metricNamespace = this.node.tryGetContext('cloudWatchMetricsNamespace') ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch.logGroupName ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch.metricsNamespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
@@ -326,9 +346,9 @@ systemctl start nitro-enclaves-acm.service
     }
 
     const defaultInstanceType = publicTlsCertificateViaAcm ? 'c6i.xlarge' : 't3.small';
-    const instanceType = this.node.tryGetContext('zillaPlusInstanceType') ?? defaultInstanceType;
+    const instanceType = zillaPlusContext.instanceType ?? defaultInstanceType;
 
-    let imageId =  this.node.tryGetContext('zillaPlusAMI');
+    let imageId =  zillaPlusContext.ami;
     if (!imageId) {
       const ami = ec2.MachineImage.lookup({
         name: 'Aklivity Zilla Plus *',

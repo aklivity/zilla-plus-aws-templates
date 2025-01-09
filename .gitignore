@@ -136,6 +136,7 @@ dist
 node_modules
 cdktf.out
 cdktf.log
+cdk.context.json
 *terraform.*.tfstate*
 .gen
 .terraform
