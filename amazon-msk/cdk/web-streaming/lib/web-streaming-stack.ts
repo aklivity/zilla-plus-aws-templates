@@ -26,8 +26,8 @@ export class WebStreamingStack extends cdk.Stack {
     const mandatoryVariables = [
       'vpcId',
       'msk',
-      'publicTlsCertificateKey',
-      'kafkaTopic',
+      'public',
+      'topic',
     ];
     
     function validateContextKeys(node: object, keys: string[]): void {
@@ -50,13 +50,19 @@ export class WebStreamingStack extends cdk.Stack {
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
       'bootstrapServers',
-      'credentialsSecretName'
+      'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.bootstrapServers;
-    const mskCredentialsSecretName = msk.credentialsSecretName;
-    const publicTlsCertificateKey = zillaPlusContext.publicTlsCertificateKey;
-    const kafkaTopic = zillaPlusContext.kafkaTopic;
+    const mskCredentialsSecretName = msk.credentials;
+    const publicVar = zillaPlusContext.public;
+    const mandatoryPublicVariables = [
+      'tlsCertificateKey',
+    ];
+    validateContextKeys(publicVar, mandatoryPublicVariables);
+
+    const publicTlsCertificateKey = publicVar.tlsCertificateKey;
+    const kafkaTopic = zillaPlusContext.topic;
 
     const customPath = zillaPlusContext.customPath;
     const path = customPath ?? `/${kafkaTopic}`;
@@ -199,7 +205,7 @@ export class WebStreamingStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    const publicPort = zillaPlusContext.publicPort ?? 7143;
+    const publicPort = publicVar.port ?? 7143;
 
     let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 

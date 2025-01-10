@@ -23,10 +23,14 @@
       "msk":
       {
         "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
-        "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+        "credentials": "<Secret Name associated with your MSK cluster>"  
       },
-      "publicTlsCertificateKey": "<your public tls certificate key ARN>",
-      "kafkaTopic": "<your kafka topic to be exposed on HTTP and SSE>"
+      "public":
+      {
+        "tlsCertificateKey": "<your public tls certificate key ARN>",
+        "port": 7143
+      },
+      "topic": "<your kafka topic to be exposed on HTTP and SSE>"
     },
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,

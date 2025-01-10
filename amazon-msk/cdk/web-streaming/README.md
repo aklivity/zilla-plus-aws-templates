@@ -43,7 +43,7 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     "msk":
     {
       "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
-      "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+      "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
@@ -60,7 +60,7 @@ aws kafka get-bootstrap-brokers \
 
 Use the `SASL/SCRAM Bootstrap Server` to set the `msk.bootstrapServers` variable.
 
-#### `credentialsSecretName`: MSK Credentials Secret Name
+#### `credentials`: MSK Credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
@@ -70,11 +70,21 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
 
-### `kafkaTopic`: Kafka Topic
+### `topic`: Kafka Topic
 
 This variable defines the Kafka topic exposed through REST and SSE.
 
-### `publicTlsCertificateKey`: Public TLS Certificate Key
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "tlsCertificateKey": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `tlsCertificateKey`: Public TLS Certificate Key
 
 You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -85,6 +95,14 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 ```
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
+
+
+#### `port`: Public TCP Port
+
+> Default: `7143`
+
+This variable defines the public port number to be used by REST and SSE clients.
+
 
 ### `capacity`: Zilla Plus Capacity
 
@@ -97,12 +115,6 @@ This variable defines the initial number of Zilla Plus instances.
 > Default: `t3.small`
 
 This variable defines the initial number of Zilla Plus instances.
-
-### `publicPort`: Public TCP Port
-
-> Default: `7143`
-
-This variable defines the public port number to be used by REST and SSE clients.
 
 ## Optional Features
 

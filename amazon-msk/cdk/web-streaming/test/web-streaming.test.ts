@@ -38,10 +38,13 @@ test('Secure Public Access Stack created', () => {
                       "msk":
                       {
                         "bootstrapServers": "b-1.mymskcluter.****.us-east-1.amazonaws.com:9096",
-                        "credentialsSecretName": "AmazonMSK_Alice"
+                        "credentials": "AmazonMSK_Alice"
                       },
-                      "publicTlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********",
-                      "kafkaTopic": "pets",
+                      "public":
+                      {
+                        "tlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********"
+                      },
+                      "topic": "pets",
                   }
             }
         }
