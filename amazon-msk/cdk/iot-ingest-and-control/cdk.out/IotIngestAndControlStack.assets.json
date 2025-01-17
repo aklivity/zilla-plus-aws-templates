@@ -1,0 +1,20 @@
+{
+  "version": "38.0.1",
+  "files": {
+    "b6d2be0f4349d9359d45cd095a2e51289d7d8fb765fcf33e53d71a7132c47b03": {
+      "source": {
+        "path": "IotIngestAndControlStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "445711703002-us-east-1": {
+          "bucketName": "cdk-hnb659fds-assets-445711703002-us-east-1",
+          "objectKey": "b6d2be0f4349d9359d45cd095a2e51289d7d8fb765fcf33e53d71a7132c47b03.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::445711703002:role/cdk-hnb659fds-file-publishing-role-445711703002-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
