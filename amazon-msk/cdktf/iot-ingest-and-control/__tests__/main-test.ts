@@ -1,6 +1,6 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusIotAndControlStack } from "../main";
+import { ZillaPlusIotAndControlStack } from "../iot-ingest-and-control-stack";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
@@ -11,7 +11,22 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
-    const app = Testing.app();
+    const app = Testing.app({
+      context: {
+        "zilla-plus":
+        {
+          "msk":
+          {
+            "cluster": "test-cluster",
+            "credentials": "test-credentials"  
+          },
+          "public":
+          {
+            "certificate": "test-certificate"
+          }
+        }
+    }});
+
     const stack = new ZillaPlusIotAndControlStack(app, "test");
     output = Testing.synth(stack);
   });
@@ -20,7 +35,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       autoscalingGroup.AutoscalingGroup,
       {
-        desired_capacity: "${var.zilla_plus_capacity}",
+        desired_capacity: 2,
         launch_template: {
           id: "${aws_launch_template.ZillaPlusLaunchTemplate-test.id}",
         },
@@ -37,14 +52,14 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
 
   it("should have cloudwatch group resource", async () => {
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
-      name: "${var.cloudwatch_logs_group-test}",
+      name: "test-group",
     });
   });
 
   it("should have load balancer target group", async () => {
     expect(output).toHaveResourceWithProperties(LbTargetGroup, {
       name: "nlb-tg-test",
-      port: "${var.public_tcp_port}",
+      port: 8883,
       protocol: "TCP",
       vpc_id: "${data.aws_vpc.Vpc.id}",
     });
@@ -73,7 +88,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
         },
       ],
       load_balancer_arn: "${aws_lb.NetworkLoadBalancer-test.arn}",
-      port: "${var.public_tcp_port}",
+      port: 8883,
       protocol: "TCP",
     });
   });
@@ -84,8 +99,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
         name: "${aws_iam_instance_profile.zilla_plus_instance_profile.name}",
       },
       image_id: "${data.aws_ami.LatestAmi.image_id}",
-      instance_type: "${var.zilla_plus_instance_type}",
-      key_name: "",
+      instance_type: "t3.small",
       network_interfaces: [
         {
           associate_public_ip_address: "true",

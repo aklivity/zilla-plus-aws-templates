@@ -43,7 +43,7 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     "msk":
     {
       "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
-      "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+      "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
@@ -60,7 +60,7 @@ aws kafka get-bootstrap-brokers \
 
 Use the `SASL/SCRAM Bootstrap Server` to set the `msk.bootstrapServers` variable.
 
-#### `credentialsSecretName`: MSK Credentials Secret Name
+#### `credentials`: MSK Credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
@@ -70,11 +70,30 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
 
-### `kafkaTopic`: Kafka Topic
+### `mappings`: Kafka Topic Mappings
 
-This variable defines the Kafka topic exposed through REST and SSE.
+```json
+    "mappings": 
+    [
+        {"topic": "<your kafka topic>"},
+        {"topic": "<your kafka topic>", "path": "<your custom path>"}
+    ]
+```
 
-### `publicTlsCertificateKey`: Public TLS Certificate Key
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<path>`
+To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
+
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "certificate": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -85,6 +104,14 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 ```
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
+
+
+#### `port`: Public TCP Port
+
+> Default: `7143`
+
+This variable defines the public port number to be used by REST and SSE clients.
+
 
 ### `capacity`: Zilla Plus Capacity
 
@@ -97,12 +124,6 @@ This variable defines the initial number of Zilla Plus instances.
 > Default: `t3.small`
 
 This variable defines the initial number of Zilla Plus instances.
-
-### `publicPort`: Public TCP Port
-
-> Default: `7143`
-
-This variable defines the public port number to be used by REST and SSE clients.
 
 ## Optional Features
 
@@ -117,10 +138,6 @@ To query the igwId of your MSK's VPN use the following command:
 VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.VpcConfig.VpcId" --output text)
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
-
-### Custom root Path
-
-To enable a custom path for the Kafka topic, set the context variable `customPath` to the path where the Kafka topic should be exposed.
 
 
 ### Custom Zilla Plus Role
@@ -147,18 +164,24 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-#### CloudWatch Integration
+### CloudWatch Integration
 
 ```json
     "cloudwatch":
     {
-        "disable": false,
-        "logGroupName": "<your public tls certificate key ARN>",
-        "port": "<your public port>"
+        "disabled": false,
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
     }
 ```
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatchDisabled` context variable to `true`.
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
@@ -172,7 +195,7 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logGroupName` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -180,7 +203,7 @@ In your `cdk.json` file add the desired CloudWatch Logs Group for variable name 
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metricsNamespace` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable JWT Access Tokens
 

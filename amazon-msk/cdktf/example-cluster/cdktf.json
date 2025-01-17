@@ -6,6 +6,9 @@
   "terraformProviders": [],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "mskCertificateAuthority": "arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b60947c4-4149-486e-81dc-de71efff6637"
+    }
   }
 }

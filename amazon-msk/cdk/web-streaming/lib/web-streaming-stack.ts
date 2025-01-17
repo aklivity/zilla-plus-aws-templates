@@ -11,8 +11,7 @@ interface TemplateData {
   name: string;
   glue?: object;
   cloudwatch?: object;
-  path?: string;
-  topic?: string;
+  mappings?: Array<object>;
   public?: object;
   kafka?: object;
   jwt?: object;
@@ -26,8 +25,8 @@ export class WebStreamingStack extends cdk.Stack {
     const mandatoryVariables = [
       'vpcId',
       'msk',
-      'publicTlsCertificateKey',
-      'kafkaTopic',
+      'public',
+      'mappings',
     ];
     
     function validateContextKeys(node: object, keys: string[]): void {
@@ -50,16 +49,27 @@ export class WebStreamingStack extends cdk.Stack {
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
       'bootstrapServers',
-      'credentialsSecretName'
+      'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.bootstrapServers;
-    const mskCredentialsSecretName = msk.credentialsSecretName;
-    const publicTlsCertificateKey = zillaPlusContext.publicTlsCertificateKey;
-    const kafkaTopic = zillaPlusContext.kafkaTopic;
+    const mskCredentialsSecretName = msk.credentials;
+    const publicVar = zillaPlusContext.public;
+    const mandatoryPublicVariables = [
+      'certificate',
+    ];
+    validateContextKeys(publicVar, mandatoryPublicVariables);
 
-    const customPath = zillaPlusContext.customPath;
-    const path = customPath ?? `/${kafkaTopic}`;
+    const publicTlsCertificateKey = publicVar.certificate;
+    const mappings = zillaPlusContext.mappings;
+
+    mappings.forEach((mapping: { path: string; topic: string; }) => {
+      if (!mapping.path) {
+        mapping.path = `/${mapping.topic}`;
+      }
+    });
+
+    const kafkaTopics: string[] = mappings.map((mapping: { topic: any; }) => mapping.topic);
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
     const subnets = vpc.selectSubnets();
@@ -199,7 +209,7 @@ export class WebStreamingStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    const publicPort = zillaPlusContext.publicPort ?? 7143;
+    const publicPort = publicVar.port ?? 7143;
 
     let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 
@@ -266,8 +276,8 @@ export class WebStreamingStack extends cdk.Stack {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = cloudwatch?.logGroupName ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch?.metricsNamespace ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
@@ -337,10 +347,9 @@ export class WebStreamingStack extends cdk.Stack {
     }
     data.public = {
       port: publicPort,
-      tlsCertificateKey: publicTlsCertificateKey
+      certificate: publicTlsCertificateKey
     }
-    data.path = path;
-    data.topic = kafkaTopic;
+    data.mappings = mappings;
 
     const kafkaTopicCreationDisabled = zillaPlusContext.kafkaTopicCreationDisabled ?? false;
 
@@ -361,6 +370,12 @@ action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate
 runas=root
     `;
 
+    let topicsCommand = "";
+    kafkaTopics.forEach((t: String) => {
+      topicsCommand = topicsCommand.concat(`
+./kafka-topics.sh --create --if-not-exists --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${t} --config 'cleanup.policy=compact'`);
+    });
+
     let kafkaTopicCreationCommand = "";
 
     if (!kafkaTopicCreationDisabled) {
@@ -379,7 +394,7 @@ sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule require
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
 EOF
-./kafka-topics.sh --create --if-not-exists --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopic} --config 'cleanup.policy=compact'
+${topicsCommand}
   `;
     }
 

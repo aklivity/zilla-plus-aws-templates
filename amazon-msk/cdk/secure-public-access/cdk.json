@@ -28,7 +28,7 @@
       "public":
       {
         "wildcardDNS": "<your public wildcard dns>",
-        "tlsCertificateKey": "<your public tls certificate key ARN>"
+        "certificate": "<your public tls certificate key ARN>"
       },
       "cloudwatch":
       {

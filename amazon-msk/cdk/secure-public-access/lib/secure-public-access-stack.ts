@@ -57,11 +57,11 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
     const publicVar = zillaPlusContext.public;
     const mandatoryPublicVariables = [
-      'tlsCertificateKey',
+      'certificate',
       'wildcardDNS'
     ];
     validateContextKeys(publicVar, mandatoryPublicVariables);
-    const publicTlsCertificateKey = publicVar.tlsCertificateKey;
+    const publicTlsCertificateKey = publicVar.certificate;
     const publicWildcardDNS = publicVar.wildcardDNS;
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
@@ -322,8 +322,8 @@ systemctl start nitro-enclaves-acm.service
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = cloudwatch?.logGroupName ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch?.metricsNamespace ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
@@ -393,7 +393,7 @@ systemctl start nitro-enclaves-acm.service
     data.public = {
       ...data.public,
       port: publicPort,
-      tlsCertificateKey: publicTlsCertificateKey,
+      certificate: publicTlsCertificateKey,
       wildcardDNS: publicWildcardDNS
     }
     data.externalHost = externalHost;

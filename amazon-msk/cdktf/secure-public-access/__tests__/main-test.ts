@@ -1,6 +1,6 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusSecurePublicAccessStack } from "../main";
+import { ZillaPlusSecurePublicAccessStack } from "../secure-public-acces-stack";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
@@ -11,7 +11,22 @@ describe("Zilla Plus Public Access Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
-    const app = Testing.app();
+    const app = Testing.app({
+      context: {
+        "zilla-plus":
+        {
+          "msk":
+          {
+            "cluster": "test-cluster",
+            "clientAuthentication": "SASL/SCRAM"  
+          },
+          "public":
+          {
+            "certificate": "test-certificate",
+            "wildcardDNS": "*.example.aklivity.io"
+          }
+        }
+    }});
     const stack = new ZillaPlusSecurePublicAccessStack(app, "test");
     output = Testing.synth(stack);
   });
@@ -39,12 +54,8 @@ describe("Zilla Plus Public Access Stack Test", () => {
   });
 
   it("should have cloudwatch group resource", async () => {
-    const app = Testing.app();
-    const stack = new ZillaPlusSecurePublicAccessStack(app, "test");
-    const output = Testing.synth(stack);
-
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
-      name: "${var.cloudwatch_logs_group}",
+      name: "test-group",
     });
   });
 
@@ -52,7 +63,7 @@ describe("Zilla Plus Public Access Stack Test", () => {
     expect(output).toHaveResourceWithProperties(LbTargetGroup, {
       vpc_id: "${data.aws_vpc.Vpc.id}",
       name: "nlb-tg-test",
-      port: "${var.public_port}",
+      port: 9094,
       protocol: "TCP",
     });
   });
@@ -79,7 +90,7 @@ describe("Zilla Plus Public Access Stack Test", () => {
         },
       ],
       load_balancer_arn: "${aws_lb.NetworkLoadBalancer-test.arn}",
-      port: "${var.public_port}",
+      port: 9094,
       protocol: "TCP",
     });
   });
@@ -90,8 +101,7 @@ describe("Zilla Plus Public Access Stack Test", () => {
         name: "${aws_iam_instance_profile.zilla_plus_instance_profile-test.name}",
       },
       image_id: "${data.aws_ami.LatestAmi.image_id}",
-      instance_type: "${var.zilla_plus_instance_type}",
-      key_name: "",
+      instance_type: "t3.small",
       network_interfaces: [
         {
           associate_public_ip_address: "true",

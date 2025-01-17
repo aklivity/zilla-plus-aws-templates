@@ -19,14 +19,23 @@
   "context": {
     "zilla-plus":
     {
-      "vpcId": "<your VPC ID>",
+      "igwId": "igw-05b35ceedbb2f521d",
+      "vpcId": "vpc-0fb4525c5807cb3da",
       "msk":
       {
-        "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
-        "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+        "bootstrapServers": "b-2.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096,b-1.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096",
+        "credentials": "AmazonMSK_alice"  
       },
-      "publicTlsCertificateKey": "<your public tls certificate key ARN>",
-      "kafkaTopic": "<your kafka topic to be exposed on HTTP and SSE>"
+      "public":
+      {
+        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL",
+        "port": 7143
+      },
+      "mappings": 
+      [
+        {"topic": "pets"},
+        {"topic": "orders", "path": "/myOrders"}
+      ]
     },
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,

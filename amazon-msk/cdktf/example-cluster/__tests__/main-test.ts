@@ -1,6 +1,6 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusExampleMskCluster } from "../main";
+import { ZillaPlusExampleMskCluster } from "../example-cluster-stack";
 import { MskCluster } from "@cdktf/provider-aws/lib/msk-cluster";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { Subnet } from "@cdktf/provider-aws/lib/subnet";
@@ -26,6 +26,9 @@ describe("Zilla Plus Example MSK Cluster Test", () => {
         security_groups: ["${aws_security_group.MskSecurityGroup.id}"],
       },
       client_authentication: {
+        sasl: {
+          scram: true
+        },
         unauthenticated: true,
       },
       cluster_name: "my-msk-cluster",
