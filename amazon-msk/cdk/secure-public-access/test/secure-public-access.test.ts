@@ -44,7 +44,7 @@ test('Secure Public Access Stack created', () => {
                     "public":
                     {
                         "wildcardDNS": "*.example.aklivity.io",
-                        "tlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********"
+                        "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
                     }
                 }
             }

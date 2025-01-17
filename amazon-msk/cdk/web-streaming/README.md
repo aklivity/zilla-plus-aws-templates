@@ -70,21 +70,30 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
 
-### `topic`: Kafka Topic
+### `mappings`: Kafka Topic Mappings
 
-This variable defines the Kafka topic exposed through REST and SSE.
+```json
+    "mappings": 
+    [
+        {"topic": "<your kafka topic>"},
+        {"topic": "<your kafka topic>", "path": "<your custom path>"}
+    ]
+```
+
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<path>`
+To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
 
 ### `public` Zilla Plus variables
 
 ```json
     "public":
     {
-        "tlsCertificateKey": "<your public tls certificate key ARN>",
+        "certificate": "<your public tls certificate key ARN>",
         "port": "<your public port>"
     }
 ```
 
-#### `tlsCertificateKey`: Public TLS Certificate Key
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -130,10 +139,6 @@ VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "Clu
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
-### Custom root Path
-
-To enable a custom path for the Kafka topic, set the context variable `customPath` to the path where the Kafka topic should be exposed.
-
 
 ### Custom Zilla Plus Role
 
@@ -159,12 +164,12 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-#### CloudWatch Integration
+### CloudWatch Integration
 
 ```json
     "cloudwatch":
     {
-        "disable": false,
+        "disabled": false,
         "logs": 
         {
             "group": "<your cloudwatch log group name>"

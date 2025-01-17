@@ -6,6 +6,22 @@
   "terraformProviders": [],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "msk":
+      {
+        "cluster": "my-msk-cluster",
+        "credentials": "AmazonMSK_alice"  
+      },
+      "public":
+      {
+        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL"
+      },
+      "mappings": 
+      [
+        {"topic": "pets"},
+        {"topic": "orders", "path": "/myOrders"}
+      ]
+    }
   }
 }

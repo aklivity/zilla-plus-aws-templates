@@ -42,9 +42,12 @@ test('Secure Public Access Stack created', () => {
                       },
                       "public":
                       {
-                        "tlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********"
+                        "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
                       },
-                      "topic": "pets",
+                      "mappings": 
+                      [
+                        {"topic": "pets"}
+                      ]
                   }
             }
         }

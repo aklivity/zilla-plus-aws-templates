@@ -44,7 +44,7 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{{public.tlsCertificateKey}}}
+        - {{{public.certificate}}}
       {{#mTLS}}
       trust:
         - {{{public.certificateAuthority}}}

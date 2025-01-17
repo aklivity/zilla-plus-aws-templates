@@ -25,15 +25,22 @@ This guide will help you gather the necessary AWS values required to configure a
 
 If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later.
 
-## Required Terraform Variables
+## Required CDKTF Context Variables
 
-You can set these variable values in your `terraform.tfvars` file. To create a `.tfvars` from the example file run:
+You can set these variables in your `context` in `cdktf.json` file under `zilla-plus` object.
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
+
+### `msk` related variables
+
+```json
+    "msk":
+    {
+      "cluster": "<your MSK cluster name>",
+      "credentials": "<Secret Name associated with your MSK cluster>"  
+    },
 ```
 
-### `msk_cluster_name`: MSK Cluster Name
+#### `cluster`: MSK Cluster Name
 
 To get a list all MSK clusters run:
 
@@ -43,11 +50,27 @@ aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
 
-### `msk_access_credentials_name`: MSK access credentials Secret Name
+#### `credentials`: MSK Credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
-### `public_tls_certificate_key`: Public TLS Certificate Key
+List all secrets ub Secrets Manager that can be associated with MSK:
+
+```bash
+aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
+```
+
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "certificate": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -59,41 +82,31 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-### `zilla_plus_capacity`: Zilla Plus Capacity
+#### `port`: Public TCP Port
+
+> Default: `8883`
+
+This variable defines the public port number to be used by REST and SSE clients.
+
+### `capacity`: Zilla Plus Capacity
 
 > Default: `2`
 
 This variable defines the initial number of Zilla Plus instances.
 
-### `zilla_plus_instance_type`: Zilla Plus EC2 Instance Type
+### `instanceType`: Zilla Plus EC2 Instance Type
 
 > Default: `t3.small`
 
 This variable defines the initial number of Zilla Plus instances.
 
-### `public_port`: Public TCP Port
-
-> Default: `8883`
-
-This variable defines the public port number to be used by MQTT clients.
-
 ## Optional Features
 
-These features all have default values and can be configured using environment variables and terraform variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
-
-### Environment Variables
-
-You can set these variable values in your runtime environment or with a `.env` file. If you don't plan on modifying any of the environment variable defaults you can skip this step.
-
-Create a `.env` file from the example file.
-
-```bash
-cp .env.example .env
-```
+These features all have default values and can be configured using cdk context variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
 
 ### Internet Gateway ID
 
-If you already have an Internet Gateway in the MSK's VPN it should be provided via the `IGW_ID` environment variable. If not set the deployment will attempt to create on in the VPC.
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdktf.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
 
 To query the IGW_ID of your MSK's VPN use the following comman:
 ```bash
@@ -104,21 +117,30 @@ aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC
 
 ### Kafka topics
 
-By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the environment variable `MQTT_KAFKA_TOPIC_CREATION_DISABLED` to `true` and set the `kafka_topic_mqtt_sessions`, `kafka_topic_mqtt_messages`, and `kafka_topic_mqtt_retained` in your `terraform.tfvars` file.
+By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the context variable `kafkaTopicCreationDisabled` to `true` and set the `sessions`, `messages`, and `retained` variables under the `topics` context variable in your `cdktf.json` file.
 
-#### `kafka_topic_mqtt_sessions`: Kafka Topic for MQTT Sessions
+```json
+   "topics":
+   {
+      "sessions": "<your kafka sessions topic>",
+      "messages": "<your kafka messages topic>",
+      "retained": "<your kafka retained topic>"
+   }
+```
+
+#### `topics.sessions`: Kafka Topic for MQTT Sessions
 
 > Default: `mqtt-sessions`
 
 This variable defines the Kafka topic storing MQTT sessions with a cleanup policy set to "compact".
 
-#### `kafka_topic_mqtt_messages`: Kafka Topic for MQTT Messages
+#### `topics.messages`: Kafka Topic for MQTT Messages
 
 > Default: `mqtt-messages`
 
 This variable defines the Kafka topic storing MQTT messages with a cleanup policy set to "delete".
 
-#### `kafka_topic_mqtt_retained`: Kafka Topic for MQTT Retained Messages
+#### `topics.retained`: Kafka Topic for MQTT Retained Messages
 
 > Default: `mqtt-retained`
 
@@ -126,7 +148,7 @@ This variable defines the Kafka topic storing MQTT retained messages with a clea
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to your `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdktf.json` under `zilla-plus` object.
 
 List all IAM roles:
 
@@ -138,7 +160,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to your `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdktf.json`.
 
 List all security groups:
 
@@ -148,9 +170,24 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-### Disable CloudWatch Integration
+### CloudWatch Integration
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `CLOUDWATCH_DISABLED` environment variable to `true`.
+```json
+    "cloudwatch":
+    {
+        "disabled": false,
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
+    }
+```
+
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
@@ -164,7 +201,8 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `terraform.tfvars` file add the desired CloudWatch Logs Group for variable name `cloudwatch_logs_group`
+In your `cdktf.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
+
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -172,11 +210,11 @@ In your `terraform.tfvars` file add the desired CloudWatch Logs Group for variab
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for variable name `cloudwatch_metrics_namespace`
+In your `cdktf.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable SSH Access
 
-To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
+To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `sshKey` context variable.
 
 List all EC2 KeyPairs:
 
@@ -219,12 +257,6 @@ This command will generate the necessary Terraform JSON configuration files in t
 ### Run terraform init and apply
 
 After synthesizing the configuration you can use `terraform` to deploy zilla.
-
-Move your `.tfvars` file into the the generated dir or you can manually enter these values when prompted, or use a .tfvars file to provide them.
-
-```bash
-cp terraform.tfvars cdktf.out/stacks/iot-ingest-and-control/terraform.tfvars
-```
 
 Initialize terraform.
 

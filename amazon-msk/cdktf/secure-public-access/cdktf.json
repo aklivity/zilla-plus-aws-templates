@@ -8,6 +8,26 @@
   ],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "igwId": "igw-05b35ceedbb2f521d",
+      "msk":
+      {
+        "cluster": "my-msk-cluster",
+        "clientAuthentication": "mTLS",
+        "certificateAuthorityArn": "arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b60947c4-4149-486e-81dc-de71efff6637"
+      },
+      "public":
+      {
+        "wildcardDNS": "*.example.aklivity.io",
+        "certificate": "arn:aws:acm:us-east-1:445711703002:certificate/a63b238e-6055-490a-a7b8-16e6c5dd8fe4"
+      },
+      "cloudwatch":
+      {
+        "disabled": false,
+        "logGroupName": "zilla-plus-spa-loggroup",
+        "metricsNamespace": "zilla-plus-spa-metrics"
+      }
+    }
   }
 }

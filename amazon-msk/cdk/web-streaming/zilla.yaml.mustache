@@ -60,7 +60,7 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{public.tlsCertificateKey}}
+        - {{public.certificate}}
     telemetry:
       metrics:
         - stream.*
@@ -82,6 +82,7 @@ bindings:
               authorization: Bearer {credentials}
 {{/jwt}}
     routes:
+{{#mappings}}
       - when:
           - headers:
               :path: {{{path}}}
@@ -103,6 +104,7 @@ bindings:
               - http:stream
 {{/jwt}}
         exit: http_kafka_mapping
+{{/mappings}}
   sse_server:
     type: sse
     kind: server
@@ -117,11 +119,13 @@ bindings:
       metrics:
         - stream.*
     routes:
+{{#mappings}}
       - when:
           - path: {{{path}}}
         exit: kafka_cache_client
         with:
           topic: {{topic}}
+{{/mappings}}
   http_kafka_mapping:
     type: http-kafka
     kind: proxy
@@ -129,6 +133,7 @@ bindings:
       metrics:
         - stream.*
     routes:
+{{#mappings}}
       - when:
           - method: POST
             path: {{{path}}}
@@ -171,12 +176,14 @@ bindings:
           topic: {{topic}}
           filters:
             - key: ${params.id}
+{{/mappings}}
   kafka_cache_client:
     type: kafka
     kind: cache_client
 {{#glue}}
     options:
       topics:
+{{#mappings}}
         - name: {{topic}}
           value:
             model: avro
@@ -185,6 +192,7 @@ bindings:
               glue_catalog:
                 - strategy: topic
                   version: latest
+{{/mappings}}
 {{/glue}}
     telemetry:
       metrics:
@@ -195,9 +203,12 @@ bindings:
     kind: cache_server
     options:
       bootstrap:
+{{#mappings}}
         - {{topic}}
+{{/mappings}}
 {{#glue}}
       topics:
+{{#mappings}}
         - name: {{topic}}
           value:
             model: avro
@@ -206,6 +217,7 @@ bindings:
               glue_catalog:
                 - strategy: topic
                   version: latest
+{{/mappings}}
 {{/glue}}
     telemetry:
       metrics:

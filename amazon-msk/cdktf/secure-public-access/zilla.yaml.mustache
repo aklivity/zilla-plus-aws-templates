@@ -44,10 +44,10 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{public.tlsCertificateKey}}
+        - {{{public.certificate}}}
       {{#mTLS}}
       trust:
-        - {{public.certificateAuthority}}
+        - {{{public.certificateAuthority}}}
       {{/mTLS}}
     telemetry:
       metrics:
@@ -77,7 +77,7 @@ bindings:
     options:
       {{#mTLS}}
       signers:
-        - {{msk.certificateAuthority}}
+        - {{{msk.certificateAuthority}}}
       {{/mTLS}}
       trustcacerts: true
     telemetry:

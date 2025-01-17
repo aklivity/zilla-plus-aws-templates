@@ -1,17 +1,37 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusWebStreamingStack } from "../main";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
+import { ZillaPlusWebStreamingStack } from "../web-streaming-stack";
 
 describe("Zilla Plus Web Streaming Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
-    const app = Testing.app();
+
+    const app = Testing.app({
+      context: {
+        "zilla-plus":
+        {
+          "msk":
+          {
+            "cluster": "test-cluster",
+            "credentials": "test-credentials"  
+          },
+          "public":
+          {
+            "certificate": "test-certificate"
+          },
+          "mappings": 
+          [
+            {"topic": "pets"}
+          ]
+        }
+    }});
+
     const stack = new ZillaPlusWebStreamingStack(app, "test");
     output = Testing.synth(stack);
   });
@@ -20,7 +40,7 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       autoscalingGroup.AutoscalingGroup,
       {
-        desired_capacity: "${var.zilla_plus_capacity}",
+        desired_capacity: 2,
         launch_template: {
           id: "${aws_launch_template.ZillaPlusLaunchTemplate-test.id}",
         },
@@ -37,7 +57,7 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
 
   it("should have cloudwatch group resource", async () => {
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
-      name: "${var.cloudwatch_logs_group}",
+      name: "test-group",
     });
     delete process.env.CLOUDWATCH_ENABLED;
   });
@@ -45,7 +65,7 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
   it("should have load balancer target group", async () => {
     expect(output).toHaveResourceWithProperties(LbTargetGroup, {
       name: "nlb-tg-test",
-      port: "${var.public_tcp_port}",
+      port: 7143,
       protocol: "TCP",
       vpc_id: "${data.aws_vpc.Vpc.id}",
     });
@@ -74,7 +94,7 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
         },
       ],
       load_balancer_arn: "${aws_lb.NetworkLoadBalancer-test.arn}",
-      port: "${var.public_tcp_port}",
+      port: 7143,
       protocol: "TCP",
     });
   });
@@ -85,8 +105,7 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
         name: "${aws_iam_instance_profile.zilla_plus_instance_profile-test.name}",
       },
       image_id: "${data.aws_ami.LatestAmi.image_id}",
-      instance_type: "${var.zilla_plus_instance_type}",
-      key_name: "",
+      instance_type: "t3.small",
       network_interfaces: [
         {
           associate_public_ip_address: "true",

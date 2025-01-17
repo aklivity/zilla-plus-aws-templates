@@ -42,7 +42,7 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     "msk":
     {
         "bootstrapServers": "<Bootstrap Servers of your MSK cluster",
-        "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]"
+        "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
     }
 ```
 
@@ -66,12 +66,12 @@ Set the desired client authentication method based on the MSK cluster setup, usi
     "public":
     {
         "wildcardDNS": "<your public wildcard dns>",
-        "tlsCertificateKey": "<your public tls certificate key ARN>",
+        "certificate": "<your public tls certificate key ARN>",
         "port": "<your public port>"
     }
 ```
 
-#### `tlsCertificateKey`: Public TLS Certificate Key
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -145,6 +145,10 @@ VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "Clu
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
+### Public TLS Certificate via AWS Certificate Manager for Nitro Enclaves
+
+If you want to enable Zilla-plus Nitro Enclaves support all you have to do is provide the `public.certificate` context variable via ACM.
+
 ### Custom Zilla Plus Role
 
 By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
@@ -187,7 +191,7 @@ Note down the ARN of the ACM Private Certificate Authority you want to use.
 ```json
     "cloudwatch":
     {
-        "disable": false,
+        "disabled": false,
         "logs": 
         {
             "group": "<your cloudwatch log group name>"
