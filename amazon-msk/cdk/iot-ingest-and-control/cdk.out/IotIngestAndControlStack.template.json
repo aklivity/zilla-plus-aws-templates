@@ -1,0 +1,522 @@
+{
+ "Resources": {
+  "InternetGatewayIotIngestAndControlStack": {
+   "Type": "AWS::EC2::InternetGateway",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "my-igw"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/InternetGateway-IotIngestAndControlStack"
+   }
+  },
+  "VpcGatewayAttachmentIotIngestAndControlStack": {
+   "Type": "AWS::EC2::VPCGatewayAttachment",
+   "Properties": {
+    "InternetGatewayId": {
+     "Ref": "InternetGatewayIotIngestAndControlStack"
+    },
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/VpcGatewayAttachment-IotIngestAndControlStack"
+   }
+  },
+  "PublicRouteTableIotIngestAndControlStack": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "public-route-table"
+     }
+    ],
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/PublicRouteTable-IotIngestAndControlStack"
+   }
+  },
+  "PublicRouteIotIngestAndControlStack": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "GatewayId": {
+     "Ref": "InternetGatewayIotIngestAndControlStack"
+    },
+    "RouteTableId": {
+     "Ref": "PublicRouteTableIotIngestAndControlStack"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/PublicRoute-IotIngestAndControlStack"
+   }
+  },
+  "Subnet1": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      0,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.0.0/20",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "public-subnet-1-IotIngestAndControlStack"
+     }
+    ],
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/Subnet1"
+   }
+  },
+  "Subnet1RouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PublicRouteTableIotIngestAndControlStack"
+    },
+    "SubnetId": {
+     "Ref": "Subnet1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/Subnet1RouteTableAssociation"
+   }
+  },
+  "Subnet2": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      1,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.16.0/20",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "public-subnet-2-IotIngestAndControlStack"
+     }
+    ],
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/Subnet2"
+   }
+  },
+  "Subnet2RouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PublicRouteTableIotIngestAndControlStack"
+    },
+    "SubnetId": {
+     "Ref": "Subnet2"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/Subnet2RouteTableAssociation"
+   }
+  },
+  "ZillaPlusRoleIotIngestAndControlStackD156E33C": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": [
+         "cloudformation.amazonaws.com",
+         "ec2.amazonaws.com"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonSSMManagedInstanceCore"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AWSCertificateManagerReadOnly"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AWSGlueSchemaRegistryReadonlyAccess"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/CloudWatchLogsFullAccess"
+       ]
+      ]
+     }
+    ],
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "acm-pca:DescribeCertificateAuthority",
+          "acm-pca:GetCertificate",
+          "acm-pca:GetCertificateAuthorityCertificate",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+          "tag:GetResources"
+         ],
+         "Effect": "Allow",
+         "Resource": "*",
+         "Sid": "VisualEditor0"
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "CCProxySecretsManagerRead"
+     }
+    ],
+    "RoleName": "zilla_plus_role-IotIngestAndControlStack"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusRole-IotIngestAndControlStack/Resource"
+   }
+  },
+  "ZillaPlusInstanceProfileIotIngestAndControlStack": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "InstanceProfileName": "zilla_plus_role-IotIngestAndControlStack",
+    "Roles": [
+     {
+      "Ref": "ZillaPlusRoleIotIngestAndControlStackD156E33C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusInstanceProfile-IotIngestAndControlStack"
+   }
+  },
+  "ZillaPlusRolePolicyIotIngestAndControlStack": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+       ],
+       "Effect": "Allow",
+       "Resource": "arn:aws:secretsmanager:*:*:secret:*",
+       "Sid": "secretStatement"
+      },
+      {
+       "Action": [
+        "logs:*",
+        "cloudwatch:GenerateQuery",
+        "cloudwatch:PutMetricData"
+       ],
+       "Effect": "Allow",
+       "Resource": "*",
+       "Sid": "cloudwatchStatement"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ZillaPlusRolePolicy-IotIngestAndControlStack",
+    "Roles": [
+     {
+      "Ref": "ZillaPlusRoleIotIngestAndControlStackD156E33C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusRolePolicy-IotIngestAndControlStack"
+   }
+  },
+  "ZillaPlusSecurityGroupIotIngestAndControlStackDB9C7E64": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for Zilla Plus",
+    "GroupName": "zilla-plus-security-group-IotIngestAndControlStack",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "from 0.0.0.0/0:8883",
+      "FromPort": 8883,
+      "IpProtocol": "tcp",
+      "ToPort": 8883
+     }
+    ],
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusSecurityGroup-IotIngestAndControlStack/Resource"
+   }
+  },
+  "LogGroupIotIngestAndControlStack70C325AF": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": "IotIngestAndControlStack-group",
+    "RetentionInDays": 30
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/LogGroup-IotIngestAndControlStack/Resource"
+   }
+  },
+  "LogStreamIotIngestAndControlStackC6104316": {
+   "Type": "AWS::Logs::LogStream",
+   "Properties": {
+    "LogGroupName": {
+     "Ref": "LogGroupIotIngestAndControlStack70C325AF"
+    },
+    "LogStreamName": "events"
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/LogStream-IotIngestAndControlStack/Resource"
+   }
+  },
+  "NetworkLoadBalancerIotIngestAndControlStack": {
+   "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+   "Properties": {
+    "IpAddressType": "ipv4",
+    "Name": "nlb-IotIngestAndControlStack",
+    "Scheme": "internet-facing",
+    "Subnets": [
+     {
+      "Ref": "Subnet1"
+     },
+     {
+      "Ref": "Subnet2"
+     }
+    ],
+    "Type": "network"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/NetworkLoadBalancer-IotIngestAndControlStack"
+   }
+  },
+  "NLBTargetGroupIotIngestAndControlStack": {
+   "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+   "Properties": {
+    "Name": "nlb-tg-IotIngestAndControlStack",
+    "Port": 8883,
+    "Protocol": "TCP",
+    "VpcId": "vpc-0ef060025d212cac7"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/NLBTargetGroup-IotIngestAndControlStack"
+   }
+  },
+  "NLBListenerIotIngestAndControlStack": {
+   "Type": "AWS::ElasticLoadBalancingV2::Listener",
+   "Properties": {
+    "DefaultActions": [
+     {
+      "TargetGroupArn": {
+       "Ref": "NLBTargetGroupIotIngestAndControlStack"
+      },
+      "Type": "forward"
+     }
+    ],
+    "LoadBalancerArn": {
+     "Ref": "NetworkLoadBalancerIotIngestAndControlStack"
+    },
+    "Port": 8883,
+    "Protocol": "TCP"
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/NLBListener-IotIngestAndControlStack"
+   }
+  },
+  "ZillaPlusLaunchTemplateIotIngestAndControlStack": {
+   "Type": "AWS::EC2::LaunchTemplate",
+   "Properties": {
+    "LaunchTemplateData": {
+     "IamInstanceProfile": {
+      "Name": {
+       "Ref": "ZillaPlusInstanceProfileIotIngestAndControlStack"
+      }
+     },
+     "ImageId": "ami-01af6cc324a63e800",
+     "InstanceType": "t3.small",
+     "NetworkInterfaces": [
+      {
+       "AssociatePublicIpAddress": true,
+       "DeviceIndex": 0,
+       "Groups": [
+        {
+         "Fn::GetAtt": [
+          "ZillaPlusSecurityGroupIotIngestAndControlStackDB9C7E64",
+          "GroupId"
+         ]
+        }
+       ]
+      }
+     ],
+     "UserData": {
+      "Fn::Base64": {
+       "Fn::Join": [
+        "",
+        [
+         "#!/bin/bash -xe\nyum update -y aws-cfn-bootstrap\ncat <<'END_HELP' > /etc/zilla/zilla.yaml\nname: iot\nvaults:\n  secure:\n    type: aws-secrets\ntelemetry:\n  metrics:\n    - stream.active.received\n    - stream.active.sent\n    - stream.opens.received\n    - stream.opens.sent\n    - stream.data.received\n    - stream.data.sent\n    - stream.errors.received\n    - stream.errors.sent\n    - stream.closes.received\n    - stream.closes.sent\n  exporters:\n    stdout_logs_exporter:\n      type: stdout\n    aws0:\n      type: aws-cloudwatch\n      options:\n        logs:\n          group: ",
+         {
+          "Ref": "LogGroupIotIngestAndControlStack70C325AF"
+         },
+         "\n          stream: events\n        metrics:\n          namespace: IotIngestAndControlStack-namespace\nbindings:\n  tcp_server:\n    type: tcp\n    kind: server\n    options:\n      host: 0.0.0.0\n      port: 8883\n    telemetry:\n      metrics:\n        - stream.*\n    exit: tls_server\n  tls_server:\n    type: tls\n    kind: server\n    vault: secure\n    options:\n      keys:\n        - arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL\n    telemetry:\n      metrics:\n        - stream.*\n    exit: mqtt_server\n  mqtt_server:\n    type: mqtt\n    kind: server\n    telemetry:\n      metrics:\n        - stream.*\n    exit: mqtt_kafka_mapping\n  mqtt_kafka_mapping:\n    type: mqtt-kafka\n    kind: proxy\n    options:\n      topics:\n        sessions: mqtt-sessions\n        messages: mqtt-messages\n        retained: mqtt-retained\n    telemetry:\n      metrics:\n        - stream.*\n    exit: kafka_cache_client\n  kafka_cache_client:\n    type: kafka\n    kind: cache_client\n    telemetry:\n      metrics:\n        - stream.*\n    exit: kafka_cache_server\n  kafka_cache_server:\n    type: kafka\n    kind: cache_server\n    options:\n      bootstrap:\n        - mqtt-messages\n        - mqtt-retained\n    telemetry:\n      metrics:\n        - stream.*\n    exit: kafka_client\n  kafka_client:\n    type: kafka\n    kind: client\n    options:\n      servers: ['b-1.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096','b-2.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096']\n      sasl:\n        mechanism: scram-sha-512\n        username: '${{aws.secrets.AmazonMSK_alice#username}}'\n        password: '${{aws.secrets.AmazonMSK_alice#password}}'\n    telemetry:\n      metrics:\n        - stream.*\n    exit: tls_client\n  tls_client:\n    type: tls\n    kind: client\n    vault: secure\n    telemetry:\n      metrics:\n        - stream.*\n    exit: tcp_client\n  tcp_client:\n    type: tcp\n    kind: client\n    telemetry:\n      metrics:\n        - stream.*\n\nEND_HELP\n\nchown ec2-user:ec2-user /etc/zilla/zilla.yaml\n\nmkdir /etc/cfn\ncat <<EOF > /etc/cfn/cfn-hup.conf\n\n[main]\nstack=IotIngestAndControlStack\nregion=us-east-1\n    \nEOF\n\nchown root:root /etc/cfn/cfn-hup.conf\nchmod 0400 /etc/cfn/cfn-hup.conf\n\nmkdir /etc/cfn/hooks.d\ncat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\n[cfn-auto-reloader-hook]\ntriggers=post.update\npath=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init\naction=/opt/aws/bin/cfn-init -v --stack IotIngestAndControlStack --resource ZillaPlusLaunchTemplate --region us-east-1\nrunas=root\n    \nEOF\n\nchown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf\nchmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\nsystemctl enable cfn-hup\nsystemctl start cfn-hup\nsystemctl enable amazon-ssm-agent\nsystemctl start amazon-ssm-agent\nsystemctl enable zilla-plus\nsystemctl start zilla-plus\n\n\nwget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz\ntar -xzf kafka_2.13-3.5.1.tgz\ncd kafka_2.13-3.5.1/libs\nwget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar\ncd ../bin\nSECRET_STRING=$(aws secretsmanager get-secret-value --secret-id AmazonMSK_alice --query SecretString --output text)\nUSERNAME=$(echo $SECRET_STRING | jq -r '.username')\nPASSWORD=$(echo $SECRET_STRING | jq -r '.password')\n\ncat <<'END_HELP'> client.properties\nsasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;\nsecurity.protocol=SASL_SSL\nsasl.mechanism=SCRAM-SHA-512\nEND_HELP\n./kafka-topics.sh --create --bootstrap-server b-1.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096,b-2.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096 --command-config client.properties --replication-factor 2 --partitions 3 --topic mqtt-sessions --config 'cleanup.policy=compact'\n./kafka-topics.sh --create --bootstrap-server b-1.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096,b-2.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096 --command-config client.properties --replication-factor 2 --partitions 3 --topic mqtt-retained --config 'cleanup.policy=compact'\n./kafka-topics.sh --create --bootstrap-server b-1.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096,b-2.mymskcluster.ba9c2m.c14.kafka.us-east-1.amazonaws.com:9096 --command-config client.properties --replication-factor 2 --partitions 3 --topic mqtt-messages\n      \n\n    "
+        ]
+       ]
+      }
+     }
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusLaunchTemplate-IotIngestAndControlStack"
+   }
+  },
+  "ZillaPlusGroupIotIngestAndControlStack": {
+   "Type": "AWS::AutoScaling::AutoScalingGroup",
+   "Properties": {
+    "DesiredCapacity": "2",
+    "LaunchTemplate": {
+     "LaunchTemplateId": {
+      "Ref": "ZillaPlusLaunchTemplateIotIngestAndControlStack"
+     },
+     "Version": "1"
+    },
+    "MaxSize": "5",
+    "MinSize": "1",
+    "TargetGroupARNs": [
+     {
+      "Ref": "NLBTargetGroupIotIngestAndControlStack"
+     }
+    ],
+    "VPCZoneIdentifier": [
+     {
+      "Ref": "Subnet1"
+     },
+     {
+      "Ref": "Subnet2"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/ZillaPlusGroup-IotIngestAndControlStack"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/12RQWvDMAyFf8vurtdmh+3a5VAKgZWk7DoUR0ndOlKx5ZYS8t9H6naBnfTex5MEUqZX7286e4FrWJjmtHC21kMlYE6qxMDRG1RwDT8DmkwPeUtbEvSEsgHBK9xU3tL3Ln+4tQiYQ48kEy85Cu6hdvjnJlHFmlBmNcfWIbCxIJZJVWiit3LbeI7ne/g/KCCSOeyxPzsQHJWFXg8lP7eluqUgQAZ3nlub0I6dNbdROe6CHgru5olPXXBXiUfoHzSZUaGDINY4hqYGB2QsdZd0l4Kh+bwz9FPXHnyHMo+2QZDQjwqicDDgLHU6b2kdhatk7+FxSn9FOcd0w8cTRkXcoD6G10u21KsPvXw5BmsXPpLYHnWZ6i/ecUjHzwEAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "IotIngestAndControlStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "NetworkLoadBalancerOutput": {
+   "Description": "Public DNS name of newly created NLB for Zilla Plus",
+   "Value": {
+    "Fn::GetAtt": [
+     "NetworkLoadBalancerIotIngestAndControlStack",
+     "DNSName"
+    ]
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
