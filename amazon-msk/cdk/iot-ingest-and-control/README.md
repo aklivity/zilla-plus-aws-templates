@@ -43,7 +43,7 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     "msk":
     {
       "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
-      "credentialsSecretName": "<Secret Name associated with your MSK cluster>"  
+      "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
@@ -70,7 +70,17 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
 
-### `publicTlsCertificateKey`: Public TLS Certificate Key
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "certificate": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -81,6 +91,12 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 ```
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
+
+#### `port`: Public TCP Port
+
+> Default: `8883`
+
+This variable defines the public port number to be used by IOT clients.
 
 ### `capacity`: Zilla Plus Capacity
 
@@ -93,12 +109,6 @@ This variable defines the initial number of Zilla Plus instances.
 > Default: `t3.small`
 
 This variable defines the initial number of Zilla Plus instances.
-
-### `publicPort`: Public TCP Port
-
-> Default: `8883`
-
-This variable defines the public port number to be used by MQTT clients.
 
 ## Optional Features
 

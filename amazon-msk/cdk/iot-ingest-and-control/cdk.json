@@ -19,13 +19,16 @@
   "context": {
     "zilla-plus":
     {
-      "vpcId": "vpc-0fb4525c5807cb3da",
+      "vpcId": "<your MSK cluster vpc id",
       "msk":
       {
-        "bootstrapServers": "b-2.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096,b-1.mymskcluster.lcch0s.c20.kafka.us-east-1.amazonaws.com:9096",
-        "credentialsSecretName": "AmazonMSK_alice"  
+        "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+        "credentials": "<Secret Name associated with your MSK cluster>"  
       },
-      "publicTlsCertificateKey": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL"
+      "public":
+      {
+        "certificate": "<your public tls certificate key ARN>"
+      } 
     },
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,

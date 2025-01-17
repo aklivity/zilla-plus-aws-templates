@@ -23,7 +23,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const mandatoryVariables = [
       'vpcId',
       'msk',
-      'publicTlsCertificateKey',
+      'public'
     ];
     
     function validateContextKeys(node: object, keys: string[]): void {
@@ -46,12 +46,18 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
       'bootstrapServers',
-      'credentialsSecretName'
+      'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.bootstrapServers;
-    const mskCredentialsSecretName = msk.credentialsSecretName;
-    const publicTlsCertificateKey = zillaPlusContext.publicTlsCertificateKey;
+    const mskCredentialsSecretName = msk.credentials;
+
+    const publicVar = zillaPlusContext.public;
+    const mandatoryPublicVariables = [
+      'certificate',
+    ];
+    validateContextKeys(publicVar, mandatoryPublicVariables);
+    const publicTlsCertificateKey = publicVar.certificate;
 
     const topics = zillaPlusContext.topics;
     const kafkaTopicMqttSessions = topics?.sessions ?? "mqtt-sessions";
@@ -197,7 +203,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
         zillaPlusRole = iamInstanceProfile.ref;
     }
 
-    const publicPort = zillaPlusContext.publicPort ?? 8883;
+    const publicPort = publicVar.port ?? 8883;
 
     let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 

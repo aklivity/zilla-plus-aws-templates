@@ -38,9 +38,12 @@ test('IOT Ingest and Control Stack created', () => {
                     "msk":
                     {
                         "bootstrapServers": "b-1.mymskcluter.****.us-east-1.amazonaws.com:9096",
-                        "credentialsSecretName": "AmazonMSK_Alice"
+                        "credentials": "AmazonMSK_Alice"
                     },
-                    "publicTlsCertificateKey": "arn:aws:acm:us-east-1:****:certificate//*********"
+                    "public":
+                    {
+                      "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL"
+                    } 
                 }
             }
         }
