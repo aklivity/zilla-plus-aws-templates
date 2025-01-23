@@ -6,6 +6,9 @@
   "terraformProviders": [],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "mskCertificateAuthority": "<your MSK cluster certificate authority>"
+    }
   }
 }

@@ -8,6 +8,18 @@
   ],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "msk":
+      {
+        "cluster": "<your MSK cluster name>",
+        "clientAuthentication": "<desired authentication method towards MSK>",
+      },
+      "public":
+      {
+        "wildcardDNS": "<your public wildcard DNS>",
+        "certificate":  "<your public tls certificate key ARN>"
+      }
+    }
   }
 }

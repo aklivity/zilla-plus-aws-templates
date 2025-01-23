@@ -1,12 +1,12 @@
-# IoT Ingest and Control Terraform deploy via CDKTF
+# Web Streaming deploy via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IoT Ingest and Control using CDKTF.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Web Streaming using CDK.
 
 ## Prerequisites
 
 1. Be subscribed to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
 1. [Install Node.js](https://nodejs.org/en/download/package-manager).
-1. [Install Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+1. [Install AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html).
 1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
 1. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 1. Set your aws region: `aws configure set region us-east-1`
@@ -23,11 +23,18 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## (optional) Create an example MSK cluster
 
-If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and SASL/SCRAM access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `MskClusterArn` from the outputs as you'll need this later. You will need to set the MSK client auth method variable to the desired one that is set up for the MSK cluster.
 
-## Required CDKTF Context Variables
+## Required CDK Context Variables
 
-You can set these variables in your `context` in `cdktf.json` file under `zilla-plus` object.
+You can set these variables in your `context` in `cdk.json` file under `zilla-plus` object.
+
+### `vpcId`: VPC ID
+The VPC ID where the MSK cluster lives. The stack will add Public Subnets and Internet Gateway and run Zilla Plus on the provided VPC.
+
+```bash
+aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text) --query "Subnets[0].VpcId" --output text
+```
 
 
 ### `msk` related variables
@@ -35,20 +42,23 @@ You can set these variables in your `context` in `cdktf.json` file under `zilla-
 ```json
     "msk":
     {
-      "cluster": "<your MSK cluster name>",
+      "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
       "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
-#### `cluster`: MSK Cluster Name
+#### `bootstrapServers`: MSK Bootstrap Servers
 
-To get a list all MSK clusters run:
+To get the bootstrap servers of the MSK cluster run:
 
 ```bash
-aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
+aws kafka get-bootstrap-brokers \
+    --cluster-arn arn:aws:kafka:us-east-1:445711703002:cluster/my-msk-cluster/83bf3e6e-c31d-4a16-9c0e-3584e845d2d7-20 \
+    --query '{BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram}' \
+    --output table
 ```
 
-Use the `ClusterName` of your desired MSK cluster for this variable.
+Use the `SASL/SCRAM Bootstrap Server` to set the `msk.bootstrapServers` variable.
 
 #### `credentials`: MSK Credentials Secret Name
 
@@ -59,6 +69,19 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 ```bash
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
+
+### `mappings`: Kafka Topic Mappings
+
+```json
+    "mappings": 
+    [
+        {"topic": "<your kafka topic>"},
+        {"topic": "<your kafka topic>", "path": "<your custom path>"}
+    ]
+```
+
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<path>`
+To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
 
 ### `public` Zilla Plus variables
 
@@ -82,11 +105,13 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
+
 #### `port`: Public TCP Port
 
-> Default: `8883`
+> Default: `7143`
 
 This variable defines the public port number to be used by REST and SSE clients.
+
 
 ### `capacity`: Zilla Plus Capacity
 
@@ -102,53 +127,22 @@ This variable defines the initial number of Zilla Plus instances.
 
 ## Optional Features
 
-These features all have default values and can be configured using cdk context variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
+These features all have default values and can be configured using cdk context variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using CDK](#deploy-stack-using-cdk) section.
 
 ### Internet Gateway ID
 
-If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdktf.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdk.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
 
-To query the IGW_ID of your MSK's VPN use the following comman:
+To query the igwId of your MSK's VPN use the following command:
 ```bash
-SUBNET_ID=$(aws kafka describe-cluster --cluster-arn <you-msk-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text)
-VPC_ID=$(aws ec2 describe-subnets --subnet-ids $SUBNET_ID --query "Subnets[0].VpcId" --output text)
+VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.VpcConfig.VpcId" --output text)
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
-### Kafka topics
-
-By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the context variable `kafkaTopicCreationDisabled` to `true` and set the `sessions`, `messages`, and `retained` variables under the `topics` context variable in your `cdktf.json` file.
-
-```json
-   "topics":
-   {
-      "sessions": "<your kafka sessions topic>",
-      "messages": "<your kafka messages topic>",
-      "retained": "<your kafka retained topic>"
-   }
-```
-
-#### `topics.sessions`: Kafka Topic for MQTT Sessions
-
-> Default: `mqtt-sessions`
-
-This variable defines the Kafka topic storing MQTT sessions with a cleanup policy set to "compact".
-
-#### `topics.messages`: Kafka Topic for MQTT Messages
-
-> Default: `mqtt-messages`
-
-This variable defines the Kafka topic storing MQTT messages with a cleanup policy set to "delete".
-
-#### `topics.retained`: Kafka Topic for MQTT Retained Messages
-
-> Default: `mqtt-retained`
-
-This variable defines the Kafka topic storing MQTT retained messages with a cleanup policy set to "compact".
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdktf.json` under `zilla-plus` object.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all IAM roles:
 
@@ -160,7 +154,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdktf.json`.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdk.json`.
 
 List all security groups:
 
@@ -201,8 +195,7 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdktf.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
-
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -210,7 +203,33 @@ In your `cdktf.json` file add the desired CloudWatch Logs Group for variable nam
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdktf.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
+
+### Enable JWT Access Tokens
+
+To enable the JWT authentication and API access control, you need to provide the `jwt` context variable. You will also need to set the JWT Issuer (`issuer`), JWT Audience (`audience`) and JWKS URL (`keys_url`) context variable inside the `jwt` object. Example:
+
+```json
+    "jwt": {
+      "issuer" : "https://auth.example.com",
+      "audience": "https://api.example.com",
+      "keysUrl": "https://{yourDomain}/.well-known/jwks.json"
+    }
+```
+
+
+### Enable Glue Schema Registry
+
+To enable the Glue Schema Registry for schema fetching, set the context variable `glueRegistry` to the name of the Glue Registry.
+
+1. List all Glue Registries:
+
+```bash
+aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
+```
+
+Note down the Glue Registry name (RegistryName) you want to use.
+
 
 ### Enable SSH Access
 
@@ -224,7 +243,7 @@ aws ec2 describe-key-pairs --query 'KeyPairs[*].[KeyName]' --output table
 
 Note down the KeyPair name `KeyName` you want to use.
 
-## Deploy stack using Terraform
+## Deploy stack using CDK
 
 ### Install Project Dependencies
 
@@ -234,40 +253,30 @@ Install the node.js dependencies specified in the `package.json` file:
 npm install
 ```
 
-### Synthesize the Terraform Configuration
+### Synthesizing the CloudFormation Template
 
-First, you need to synthesize the Terraform configuration from the CDKTF code.
-
-Navigate to the CDKTF project directory.
-
-Run the following command to to generate providers in a `.gen` folder:
+Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-npm run get
+cdk synth
 ```
 
-Run the following command to synthesize the configuration:
+This generates the cdk.out directory containing the synthesized CloudFormation template.
+
+### Bootstrap the environment (if needed)
+
+If this is your first time deploying in a specific AWS environment, bootstrap it:
 
 ```bash
-npm run synth
+cdk bootstrap
 ```
 
-This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
+### Deploy the stack
+Deploy your resources to AWS:
 
-### Run terraform init and apply
-
-After synthesizing the configuration you can use `terraform` to deploy zilla.
-
-Initialize terraform.
 
 ```bash
-terraform -chdir=cdktf.out/stacks/iot-ingest-and-control init
-```
-
-Apply the plan, review the resources to be create, and confirm to deploy the resources:
-
-```bash
-terraform -chdir=cdktf.out/stacks/iot-ingest-and-control apply
+cdk deploy
 ```
 
 ### Configure Global DNS
@@ -281,19 +290,21 @@ nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider. For example:
 
 ```bash
-X.X.X.X  mqtt.example.aklivity.io
+X.X.X.X  web.example.aklivity.io
 ```
 
-### Test the Zilla Plus MQTT broker
+### Test the Zilla Plus REST and SSE
 
-If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
+If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
 
 ```bash
- mosquitto_sub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/# -p 8883 -d
+curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/<your path>"
 ```
 
-Open another terminal and publish to topic `sensors/one`.
+Note that `your path` defaults to the exposed Kafka topic in your config.
+
+In another terminal, use `curl` to POST and notice the data arriving on your SSE stream.
 
 ```bash
-mosquitto_pub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/one -p 8883 -m "Hello, World" -d
+curl -d 'Hello, World' -X POST https://web.example.aklivity.io:7143/<your path>
 ```

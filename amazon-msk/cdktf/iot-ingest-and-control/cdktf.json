@@ -8,6 +8,17 @@
   ],
   "terraformModules": [],
   "context": {
-
+    "zilla-plus":
+    {
+      "msk":
+      {
+        "cluster": "<your MSK cluster name>",
+        "credentials": "<Secret Name associated with your MSK cluster>"
+      },
+      "public":
+      {
+        "certificate": "<your public tls certificate key ARN>"
+      }
+    }
   }
 }

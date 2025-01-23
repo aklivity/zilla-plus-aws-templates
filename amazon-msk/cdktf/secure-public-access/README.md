@@ -25,15 +25,21 @@ This guide will help you gather the necessary AWS values required to configure a
 
 If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. Follow the instructions inside the [example-cluster](../example-cluster/README.md) folder to deploy the example MSK cluster. Note the `mskClusterName` from the outputs as you'll need this later. You will need to set the [MSK client auth method](#msk-client-authentication-method) env var to `Unauthorized`.
 
-## Required Terraform Variables
+## Required CDKTF Context Variables
 
-You can set these variable values in your `terraform.tfvars` file. To create a `.tfvars` from the example file run:
+You can set these variables in your `context` in `cdktf.json` file under `zilla-plus` object.
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
+### `msk` related variables
+
+```json
+    "msk":
+    {
+      "cluster": "<your MSK cluster name>",
+      "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
+    },
 ```
 
-### `msk_cluster_name`: MSK Cluster Name
+### `cluster`: MSK Cluster Name
 
 To get a list all MSK clusters run:
 
@@ -42,9 +48,21 @@ aws kafka list-clusters --query 'ClusterInfoList[*].{Name:ClusterName, Arn:Clust
 ```
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
-Set the desired client authentication method based on the MSK cluster setup, using `MSK_ACCESS_METHOD` environment variable.
+Set the desired client authentication method based on the MSK cluster setup, using `clientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
 
-### `public_tls_certificate_key`: Public TLS Certificate Key
+
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "wildcardDNS": "<your public wildcard dns>",
+        "certificate": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -64,36 +82,36 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-### `public_wildcard_dns`: Public Wildcard DNS
+#### `wildcardDNS`: Public Wildcard DNS
 
 This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
 It should match the wildcard DNS of the public TLS certificate.
 
-### `zilla_plus_capacity`: Zilla Plus Capacity
-
-> Default: `2`
-
-This variable defines the initial number of Zilla Plus instances.
-
-### `zilla_plus_instance_type`: Zilla Plus EC2 Instance Type
-
-> Default: `t3.small`
-
-This variable defines the initial number of Zilla Plus instances.
-
-### `public_port`: Public TCP Port
+#### `port`: Public TCP Port
 
 > Default: `9094`
 
 This variable defines the public port number to be used by Kafka clients.
 
+### `capacity`: Zilla Plus Capacity
+
+> Default: `2`
+
+This variable defines the initial number of Zilla Plus instances.
+
+### `instanceType`: Zilla Plus EC2 Instance Type
+
+> Default: `t3.small`
+
+This variable defines the initial number of Zilla Plus instances.
+
 ### mTLS Specific Variables
 
 You only need to add these if you choose mTLS as client authentication method
 
-#### `msk_certificate_authority_arn`: MSK Certificate Authority ARN
+#### `certificateAuthorityArn`: MSK Certificate Authority ARN
 
-This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster.
+This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster. You can set this in the context variable in your `cdktf.json` file under `zilla-plus` object in the `msk` variables section.
 
 List all ACM Private Certificate Authorities:
 
@@ -105,21 +123,11 @@ Note down the ARN of the ACM Private Certificate Authority you want to use.
 
 ## Optional Features
 
-These features all have default values and can be configured using environment variables and terraform variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
-
-### Environment Variables
-
-You can set these variable values in your runtime environment or with a `.env` file. If you don't plan on modifying any of the environment variable defaults you can skip this step.
-
-Create a `.env` file from the example file.
-
-```bash
-cp .env.example .env
-```
+These features all have default values and can be configured using cdk context variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using Terraform](#deploy-stack-using-terraform) section.
 
 ### Internet Gateway ID
 
-If you already have an Internet Gateway in the MSK's VPN it should be provided via the `IGW_ID` environment variable. If not set the deployment will attempt to create on in the VPC.
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdktf.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
 
 To query the IGW_ID of your MSK's VPN use the following comman:
 ```bash
@@ -127,17 +135,13 @@ VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "Clu
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
-### MSK Client Authentication Method
-
-To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
-
 ### Public TLS Certificate via AWS Certificate Manager for Nitro Enclaves
 
-By default Zilla Plus will assume TLS certificate coming from Secrets Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
+If you want to enable Zilla-plus Nitro Enclaves support all you have to do is provide the `public.certificate` context variable via ACM.
 
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `CREATE_ZILLA_PLUS_ROLE` environment variable to `false` and adding `zilla_plus_role` to your `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdktf.json` under `zilla-plus` object.
 
 List all IAM roles:
 
@@ -149,7 +153,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `CREATE_ZILLA_PLUS_SECURITY_GROUP` environment variable to `false` and adding `zilla_plus_security_groups` to your `terraform.tfvars` file.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdktf.json` under `zilla-plus` object.
 
 List all security groups:
 
@@ -159,10 +163,10 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-#### Separate Public Certificate Authority ARN
+### Separate Public Certificate Authority ARN
 
 This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the Public Zilla Plus.
-By default Zilla Plus will use the `msk_certificate_authority_arn` for the Public Certificate Authority. If you want to change this set `PUBLIC_CERTIFICATE_AUTHORITY` environment variable to `true` and define the `public_certificate_authority_arn` in your `terraform.tfvars` file.
+By default Zilla Plus will use the `msk.certificateAuthorityArn` for the Public Certificate Authority. If you want to change this set `certificateAuthorityArn` context variable in your `cdktf.json` file under `zilla-plus` object in the `public` variables section.
 
 List all ACM Private Certificate Authorities:
 
@@ -172,35 +176,50 @@ aws acm-pca list-certificate-authorities --query 'CertificateAuthorities[*].[Arn
 
 Note down the ARN of the ACM Private Certificate Authority you want to use.
 
-### Disable CloudWatch Integration
+### CloudWatch Integration
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `CLOUDWATCH_DISABLED` environment variable to `true`.
+```json
+    "cloudwatch":
+    {
+        "disabled": false,
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
+    }
+```
+
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
 If you want to define your own, follow these steps.
 
-#### List All CloudWatch Log Groups (cloudwatch_logs_group)
+#### List All CloudWatch Log Groups
 
 ```bash
 aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `terraform.tfvars` file add the desired CloudWatch Logs Group for variable name `cloudwatch_logs_group`
+In your `cdktf.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
 
-#### List All CloudWatch Custom Metric Namespaces (cloudwatch_metrics_namespace)
+#### List All CloudWatch Custom Metric Namespaces
 
 ```bash
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for variable name `cloudwatch_metrics_namespace`
+In your `cdktf.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable SSH Access
 
-To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
+To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `sshKey` context variable under `zilla-plus` object.
 
 List all EC2 KeyPairs:
 
@@ -247,12 +266,6 @@ This command will generate the necessary Terraform JSON configuration files in t
 ### Run terraform init and apply
 
 After synthesizing the configuration you can use `terraform` to deploy zilla.
-
-Move your `.tfvars` file into the the generated dir or you can manually enter these values when prompted, or use a .tfvars file to provide them.
-
-```bash
-cp terraform.tfvars cdktf.out/stacks/secure-public-access/terraform.tfvars
-```
 
 Initialize terraform.
 

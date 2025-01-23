@@ -27,31 +27,51 @@ If you don't have an existing MSK cluster you can use our example MSK deployment
 
 ## Required CDK Context Variables
 
-You can set these variables in your `context` in `cdk.json` file.
+You can set these variables in your `context` in `cdk.json` file under `zilla-plus` object.
 
-### `vpcId`: MSK Cluster Name
+### `vpcId`: VPC ID
 The VPC ID where the MSK cluster lives. The stack will add Public Subnets and Internet Gateway and run Zilla Plus on the provided VPC.
 
 ```bash
 aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text) --query "Subnets[0].VpcId" --output text
 ```
 
+### `msk` related variables
 
-### `mskBootstrapServers`: MSK Bootstrap Servers and Authentication Method
+```json
+    "msk":
+    {
+        "bootstrapServers": "<Bootstrap Servers of your MSK cluster",
+        "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
+    }
+```
+
+#### `bootstrapServers`: MSK Bootstrap Servers and Authentication Method
 
 To get the bootstrap servers of the MSK cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
-    --cluster-arn arn:aws:kafka:us-east-1:445711703002:cluster/my-msk-cluster/83bf3e6e-c31d-4a16-9c0e-3584e845d2d7-20 \
+    --cluster-arn <msk-cluster-arn> \
     --query '{BootstrapBrokerStringTls: BootstrapBrokerStringTls, BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram, BootstrapBrokerStringSaslIam: BootstrapBrokerStringSaslIam}' \
     --output table
 ```
 
-Use the `Bootstrap Server` of your desired authentication method to set the `mskBootstrapServers` variable.
-Set the desired client authentication method based on the MSK cluster setup, using `mskClientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
+Use the `Bootstrap Server` of your desired authentication method to set the `bootstrapServers` variable.
+Set the desired client authentication method based on the MSK cluster setup, using `clientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
 
-### `publicTlsCertificateKey`: Public TLS Certificate Key
+### `public` Zilla Plus variables
+
+```json
+    "public":
+    {
+        "wildcardDNS": "<your public wildcard dns>",
+        "certificate": "<your public tls certificate key ARN>",
+        "port": "<your public port>"
+    }
+```
+
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
 
@@ -71,36 +91,37 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-### `publicWildcardDNS`: Public Wildcard DNS
+#### `wildcardDNS`: Public Wildcard DNS
 
 This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
 It should match the wildcard DNS of the public TLS certificate.
 
-### `zillaPlusCapacity`: Zilla Plus Capacity
-
-> Default: `2`
-
-This variable defines the initial number of Zilla Plus instances.
-
-### `zillaPlusInstanceType`: Zilla Plus EC2 Instance Type
-
-> Default: `t3.small`
-
-This variable defines the initial number of Zilla Plus instances.
-
-### `publicPort`: Public TCP Port
+#### `port`: Public TCP Port
 
 > Default: `9094`
 
 This variable defines the public port number to be used by Kafka clients.
 
+
+### `capacity`: Zilla Plus Capacity
+
+> Default: `2`
+
+This variable defines the initial number of Zilla Plus instances.
+
+### `instanceType`: Zilla Plus EC2 Instance Type
+
+> Default: `t3.small`
+
+This variable defines the initial number of Zilla Plus instances.
+
 ### mTLS Specific Variables
 
 You only need to add these if you choose mTLS as client authentication method
 
-#### `mskCertificateAuthorityArn`: MSK Certificate Authority ARN
+#### `certificateAuthorityArn`: MSK Certificate Authority ARN
 
-This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster.
+This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster. You can set this in the context variable in your `cdk.json` file under `zilla-plus` object in the `msk` variables section.
 
 List all ACM Private Certificate Authorities:
 
@@ -116,7 +137,7 @@ These features all have default values and can be configured using cdk context v
 
 ### Internet Gateway ID
 
-If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable. If not set the deployment will attempt to create on in the VPC.
+If you already have an Internet Gateway in the MSK's VPN it should be provided via the `igwId` context variable in your `cdk.json` under `zilla-plus` object. If not set the deployment will attempt to create on in the VPC.
 
 To query the igwId of your MSK's VPN use the following command:
 ```bash
@@ -124,9 +145,13 @@ VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "Clu
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
+### Public TLS Certificate via AWS Certificate Manager for Nitro Enclaves
+
+If you want to enable Zilla-plus Nitro Enclaves support all you have to do is provide the `public.certificate` context variable via ACM.
+
 ### Custom Zilla Plus Role
 
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `zillaPlusRoleName` context variable in your `cdk.json`.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all IAM roles:
 
@@ -138,7 +163,7 @@ Note down the role name `RoleName` of the desired IAM role.
 
 ### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `zillaPlusSecurityGroups` context variable in your `cdk.json`.
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all security groups:
 
@@ -148,10 +173,10 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-#### Separate Public Certificate Authority ARN
+### Separate Public Certificate Authority ARN
 
 This variable defines the ACM Private Certificate Authority ARN used to authorize clients connecting to the Public Zilla Plus.
-By default Zilla Plus will use the `mskCertificateAuthorityArn` for the Public Certificate Authority. If you want to change this set `publicCertificateAuthorityArn` context variable in your `cdk.json` file.
+By default Zilla Plus will use the `msk.certificateAuthorityArn` for the Public Certificate Authority. If you want to change this set `certificateAuthorityArn` context variable in your `cdk.json` file under `zilla-plus` object in the `public` variables section.
 
 List all ACM Private Certificate Authorities:
 
@@ -161,35 +186,50 @@ aws acm-pca list-certificate-authorities --query 'CertificateAuthorities[*].[Arn
 
 Note down the ARN of the ACM Private Certificate Authority you want to use.
 
-### Disable CloudWatch Integration
+### CloudWatch Integration
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatchDisabled` context variable to `true`.
+```json
+    "cloudwatch":
+    {
+        "disabled": false,
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
+    }
+```
+
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
 If you want to define your own, follow these steps.
 
-#### List All CloudWatch Log Groups (cloudwatch_logs_group)
+#### List All CloudWatch Log Groups
 
 ```bash
 aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `cloudWatchLogGroupName`
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
 
-#### List All CloudWatch Custom Metric Namespaces (cloudwatch_metrics_namespace)
+#### List All CloudWatch Custom Metric Namespaces
 
 ```bash
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `cloudWatchMetricsNamespace`
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable SSH Access
 
-To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `zillaPlusSSHKey` context variable.
+To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `sshKey` context variable under `zilla-plus` object.
 
 List all EC2 KeyPairs:
 
