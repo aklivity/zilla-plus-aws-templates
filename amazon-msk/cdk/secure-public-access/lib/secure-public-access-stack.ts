@@ -48,11 +48,11 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     const vpcId = zillaPlusContext.vpcId;
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
-      'bootstrapServers',
+      'servers',
       'clientAuthentication'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
-    const mskBootstrapServers = msk.bootstrapServers;
+    const mskBootstrapServers = msk.servers;
     const mskClientAuthentication = msk.clientAuthentication;
 
     const publicVar = zillaPlusContext.public;

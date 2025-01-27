@@ -22,7 +22,7 @@
       "vpcId": "<your MSK cluster's VPC ID>",
       "msk":
       {
-        "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+        "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
         "credentials": "<Secret Name associated with your MSK cluster>"
       },
       "public":

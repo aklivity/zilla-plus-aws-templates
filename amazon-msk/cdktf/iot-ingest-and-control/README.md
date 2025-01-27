@@ -289,11 +289,11 @@ X.X.X.X  mqtt.example.aklivity.io
 If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
 
 ```bash
- mosquitto_sub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/# -p 8883 -d
+ mosquitto_sub --url mqtts://mqtt.example.aklivity.io/sensors/# -d
 ```
 
 Open another terminal and publish to topic `sensors/one`.
 
 ```bash
-mosquitto_pub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/one -p 8883 -m "Hello, World" -d
+mosquitto_pub --url mqtts://mqtt.example.aklivity.io/sensors/one -m "Hello, World" -d
 ```

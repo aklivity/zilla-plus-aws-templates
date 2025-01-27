@@ -45,11 +45,11 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const vpcId = zillaPlusContext.vpcId;
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
-      'bootstrapServers',
+      'servers',
       'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
-    const mskBootstrapServers = msk.bootstrapServers;
+    const mskBootstrapServers = msk.servers;
     const mskCredentialsSecretName = msk.credentials;
 
     const publicVar = zillaPlusContext.public;
@@ -249,8 +249,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const logGroupName = cloudwatch?.logGroupName ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch?.metricsNamespace ?? defaultMetricNamespace;
+      const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
+      const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
 
       const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
         logGroupName: logGroupName,
@@ -304,7 +304,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const kafkaBootstrapServers = `['${mskBootstrapServers.split(",").join("','")}']`;
 
     data.kafka = {
-      bootstrapServers: kafkaBootstrapServers,
+      servers: kafkaBootstrapServers,
       sasl : {
         username: kafkaSaslUsername,
         password: kafkaSaslPassword
@@ -352,14 +352,15 @@ SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskCredentials
 USERNAME=$(echo $SECRET_STRING | jq -r '.username')
 PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
 
-cat <<'END_HELP'> client.properties
+cat <<EOF> client.properties
 sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
-END_HELP
+EOF
 ./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact'
 ./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
 ./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttMessages}
+
       `;
     }
 

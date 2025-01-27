@@ -90,7 +90,7 @@ bindings:
     type: kafka
     kind: client
     options:
-      servers: {{{kafka.bootstrapServers}}}
+      servers: {{{kafka.servers}}}
       sasl:
         mechanism: scram-sha-512
         username: '{{kafka.sasl.username}}'

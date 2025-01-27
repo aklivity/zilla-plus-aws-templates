@@ -19,10 +19,10 @@
   "context": {
     "zilla-plus":
     {
-      "vpcId": "<your MSK cluster vpc id",
+      "vpcId": "<your MSK cluster vpc id>",
       "msk":
       {
-        "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+        "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
         "credentials": "<Secret Name associated with your MSK cluster>"  
       },
       "public":

@@ -42,12 +42,12 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
 ```json
     "msk":
     {
-      "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+      "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
       "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
-#### `bootstrapServers`: MSK Bootstrap Servers
+#### `servers`: MSK Bootstrap Servers
 
 To get the bootstrap servers of the MSK cluster run:
 
@@ -58,7 +58,7 @@ aws kafka get-bootstrap-brokers \
     --output table
 ```
 
-Use the `SASL/SCRAM Bootstrap Server` to set the `msk.bootstrapServers` variable.
+Use the `SASL/SCRAM Bootstrap Server` to set the `msk.servers` variable.
 
 #### `credentials`: MSK Credentials Secret Name
 

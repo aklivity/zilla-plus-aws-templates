@@ -22,7 +22,7 @@
       "vpcId": "<your VPC ID>",
       "msk":
       {
-        "bootstrapServers": "<Bootstrap Servers of your MSK cluster>",
+        "servers": "<Bootstrap Servers of your MSK cluster>",
         "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
       },
       "public":

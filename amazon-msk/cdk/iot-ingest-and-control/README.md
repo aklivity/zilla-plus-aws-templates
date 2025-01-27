@@ -42,12 +42,12 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
 ```json
     "msk":
     {
-      "bootstrapServers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+      "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
       "credentials": "<Secret Name associated with your MSK cluster>"  
     },
 ```
 
-#### `bootstrapServers`: MSK Bootstrap Servers
+#### `servers`: MSK Bootstrap Servers
 
 To get the bootstrap servers of the MSK cluster run:
 
@@ -58,7 +58,7 @@ aws kafka get-bootstrap-brokers \
     --output table
 ```
 
-Use the `SASL/SCRAM Bootstrap Server` to set the `msk.bootstrapServers` variable.
+Use the `SASL/SCRAM Bootstrap Server` to set the `msk.servers` variable.
 
 #### `credentialsSecretName`: MSK Credentials Secret Name
 
@@ -184,13 +184,19 @@ Note down the security group IDs (GroupId) of the desired security groups.
 ```json
     "cloudwatch":
     {
-        "disable": false,
-        "logGroupName": "<your cloudwatch log group name>",
-        "metricsNamespace": "<your cloudwatch metrics namespace>"
+        "disabled": false,
+        "logs": 
+        {
+            "group": "<your cloudwatch log group name>"
+        },
+        "metrics":
+        {
+            "namespace": "<your cloudwatch metrics namespace>"
+        }
     }
 ```
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatchDisabled` context variable to `true`.
+By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
@@ -281,11 +287,11 @@ X.X.X.X  mqtt.example.aklivity.io
 If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
 
 ```bash
- mosquitto_sub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/# -p 8883 -d
+ mosquitto_sub --url mqtts://mqtt.example.aklivity.io/sensors/# -d
 ```
 
 Open another terminal and publish to topic `sensors/one`.
 
 ```bash
-mosquitto_pub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/one -p 8883 -m "Hello, World" -d
+mosquitto_pub --url mqtts://mqtt.example.aklivity.io/sensors/one -m "Hello, World" -d
 ```

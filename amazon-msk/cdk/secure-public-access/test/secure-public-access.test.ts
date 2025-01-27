@@ -37,7 +37,7 @@ test('Secure Public Access Stack created', () => {
                     "vpcId": "vpc-12345",
                     "msk":
                     {
-                        "bootstrapServers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
+                        "servers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
                         "clientAuthentication": "SASL/SCRAM",
                         "certificateAuthorityArn": "arn:aws:acm-pca:us-east-1:****:certificate-authority/*********",
                     },

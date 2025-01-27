@@ -41,12 +41,12 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
 ```json
     "msk":
     {
-        "bootstrapServers": "<Bootstrap Servers of your MSK cluster",
+        "servers": "<Bootstrap Servers of your MSK cluster",
         "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
     }
 ```
 
-#### `bootstrapServers`: MSK Bootstrap Servers and Authentication Method
+#### `servers`: MSK Bootstrap Servers and Authentication Method
 
 To get the bootstrap servers of the MSK cluster run:
 
@@ -57,7 +57,7 @@ aws kafka get-bootstrap-brokers \
     --output table
 ```
 
-Use the `Bootstrap Server` of your desired authentication method to set the `bootstrapServers` variable.
+Use the `Bootstrap Server` of your desired authentication method to set the `servers` variable.
 Set the desired client authentication method based on the MSK cluster setup, using `clientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
 
 ### `public` Zilla Plus variables
