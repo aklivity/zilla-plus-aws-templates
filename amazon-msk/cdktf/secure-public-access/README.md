@@ -62,6 +62,11 @@ Set the desired client authentication method based on the MSK cluster setup, usi
     }
 ```
 
+#### `wildcardDNS`: Public Wildcard DNS
+
+This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
+It should match the wildcard DNS of the public TLS certificate.
+
 #### `certificate`: Public TLS Certificate Key
 
 You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
@@ -81,11 +86,6 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 ```
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
-
-#### `wildcardDNS`: Public Wildcard DNS
-
-This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
-It should match the wildcard DNS of the public TLS certificate.
 
 #### `port`: Public TCP Port
 

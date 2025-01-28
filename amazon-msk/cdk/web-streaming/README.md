@@ -53,7 +53,7 @@ To get the bootstrap servers of the MSK cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
-    --cluster-arn arn:aws:kafka:us-east-1:445711703002:cluster/my-msk-cluster/83bf3e6e-c31d-4a16-9c0e-3584e845d2d7-20 \
+    --cluster-arn <msk-cluster-arn> \
     --query '{BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram}' \
     --output table
 ```
@@ -80,7 +80,7 @@ aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMS
     ]
 ```
 
-This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<path>`
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<topic>`.
 To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
 
 ### `public` Zilla Plus variables

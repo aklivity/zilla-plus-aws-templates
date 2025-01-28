@@ -53,14 +53,14 @@ To get the bootstrap servers of the MSK cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
-    --cluster-arn arn:aws:kafka:us-east-1:445711703002:cluster/my-msk-cluster/83bf3e6e-c31d-4a16-9c0e-3584e845d2d7-20 \
+    --cluster-arn <msk-cluster-arn> \
     --query '{BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram}' \
     --output table
 ```
 
 Use the `SASL/SCRAM Bootstrap Server` to set the `msk.servers` variable.
 
-#### `credentialsSecretName`: MSK Credentials Secret Name
+#### `credentials`: MSK Credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 

@@ -69,7 +69,7 @@ aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMS
     ]
 ```
 
-This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<path>`
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<topic>`.
 To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
 
 ### `public` Zilla Plus variables
