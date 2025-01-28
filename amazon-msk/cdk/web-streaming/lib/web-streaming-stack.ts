@@ -48,11 +48,11 @@ export class WebStreamingStack extends cdk.Stack {
     const vpcId = zillaPlusContext.vpcId;
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
-      'bootstrapServers',
+      'servers',
       'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
-    const mskBootstrapServers = msk.bootstrapServers;
+    const mskBootstrapServers = msk.servers;
     const mskCredentialsSecretName = msk.credentials;
     const publicVar = zillaPlusContext.public;
     const mandatoryPublicVariables = [
@@ -339,7 +339,7 @@ export class WebStreamingStack extends cdk.Stack {
     const kafkaBootstrapServers = `['${mskBootstrapServers.split(",").join("','")}']`;
 
     data.kafka = {
-      bootstrapServers: kafkaBootstrapServers,
+      servers: kafkaBootstrapServers,
       sasl : {
         username: kafkaSaslUsername,
         password: kafkaSaslPassword

@@ -9,16 +9,14 @@ import fs =  require("fs");
 
 interface TemplateData {
   name: string;
-  useAcm: boolean;
   cloudwatch?: object;
   public?: object;
-  mTLS?: boolean;
-  externalHost?: string;
-  internalHost?: string;
-  msk?: object;
+  topics?: object;
+  kafka?: object;
 }
 
-export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
+
+export class IotIngestAndControlStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -28,7 +26,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       'public'
     ];
     
-    function validateContextKeys(node:  | object, keys: string[]): void {
+    function validateContextKeys(node: object, keys: string[]): void {
       const missingKeys = [];
       if (node instanceof Node) {
         missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
@@ -41,28 +39,31 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
-    
+
     const zillaPlusContext = this.node.tryGetContext('zilla-plus');
     validateContextKeys(zillaPlusContext, mandatoryVariables);
-
     const vpcId = zillaPlusContext.vpcId;
     const msk = zillaPlusContext.msk;
     const mandatoryMSKVariables = [
       'servers',
-      'clientAuthentication'
+      'credentials'
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.servers;
-    const mskClientAuthentication = msk.clientAuthentication;
+    const mskCredentialsSecretName = msk.credentials;
 
     const publicVar = zillaPlusContext.public;
     const mandatoryPublicVariables = [
       'certificate',
-      'wildcardDNS'
     ];
     validateContextKeys(publicVar, mandatoryPublicVariables);
     const publicTlsCertificateKey = publicVar.certificate;
-    const publicWildcardDNS = publicVar.wildcardDNS;
+
+    const topics = zillaPlusContext.topics;
+    const kafkaTopicMqttSessions = topics?.sessions ?? "mqtt-sessions";
+    const kafkaTopicMqttRetained = topics?.retained ?? "mqtt-retained";
+    const kafkaTopicMqttMessages = topics?.messages ?? "mqtt-messages";
+
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
     const subnets = vpc.selectSubnets();
@@ -71,7 +72,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       return;
     }
 
-    let igwId = zillaPlusContext.igwId;
+    let igwId = zillaPlusContext.igwId;;
     if (!igwId)
     {
       const internetGateway = new ec2.CfnInternetGateway(this, `InternetGateway-${id}`, {
@@ -84,6 +85,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         internetGatewayId: igwId,
       });
     }
+
 
     const publicRouteTable = new ec2.CfnRouteTable(this, `PublicRouteTable-${id}`, {
       vpcId: vpcId,
@@ -132,37 +134,6 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
       });
     }
 
-    const domainParts = mskBootstrapServers.split(',')[0].split(':');
-    const serverAddress = domainParts[0];
-    const mskPort = domainParts[1];
-
-    const addressParts = serverAddress.split('.');
-    const mskBootstrapCommonPart = addressParts.slice(1).join(".");
-    const mskWildcardDNS = `*.${mskBootstrapCommonPart}`;
-
-    const mTLSEnabled = mskClientAuthentication === 'mTLS';
-    const publicTlsCertificateViaAcm: boolean = publicTlsCertificateKey.startsWith("arn:aws:acm");
-
-    const data: TemplateData = {
-      name: 'public',
-      useAcm: publicTlsCertificateViaAcm,
-      mTLS: mTLSEnabled,
-      public: {}
-    };
-
-
-    if (mTLSEnabled) {
-      validateContextKeys(msk, ['certificateAuthorityArn']);
-      const mskCertificateAuthorityArn = msk.certificateAuthorityArn;
-      const publicCertificateAuthority = publicVar.certificateAuthorityArn ?? mskCertificateAuthorityArn;
-      data.public  = {
-        certificateAuthority: publicCertificateAuthority
-      }
-      data.msk  = {
-        certificateAuthority: mskCertificateAuthorityArn
-      }
-    }
-
     let zillaPlusRole = zillaPlusContext.roleName;
 
     if (!zillaPlusRole) {
@@ -193,8 +164,6 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
                   'secretsmanager:DescribeSecret',
                 ],
                 resources: [
-                  'arn:aws:secretsmanager:*:*:secret:wildcard.example.aklivity.io*',
-                  'arn:aws:secretsmanager:*:*:secret:client-*',
                   '*',
                 ],
               }),
@@ -225,34 +194,6 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         ],
       });
 
-      if (publicTlsCertificateViaAcm) {
-        iamPolicy.addStatements(
-          new iam.PolicyStatement({
-            sid: 's3Statement',
-            effect: iam.Effect.ALLOW,
-            actions: ['s3:GetObject'],
-            resources: ['arn:aws:s3:::*/*'],
-          }),
-          new iam.PolicyStatement({
-            sid: 'kmsDecryptStatement',
-            effect: iam.Effect.ALLOW,
-            actions: ['kms:Decrypt'],
-            resources: ['arn:aws:kms:*:*:key/*'],
-          }),
-          new iam.PolicyStatement({
-            sid: 'getRoleStatement',
-            effect: iam.Effect.ALLOW,
-            actions: ['iam:GetRole'],
-            resources: [`arn:aws:iam::*:role/${iamRole.roleName}`],
-          })
-        );
-
-        new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
-          certificateArn: publicTlsCertificateKey,
-          roleArn: iamRole.roleArn,
-        });
-      }
-
       new iam.CfnPolicy(this, `ZillaPlusRolePolicy-${id}`, {
         policyName: `ZillaPlusRolePolicy-${id}`,
         roles: [iamRole.roleName],
@@ -261,6 +202,8 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
         zillaPlusRole = iamInstanceProfile.ref;
     }
+
+    const publicPort = publicVar.port ?? 8883;
 
     let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
 
@@ -273,46 +216,30 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         securityGroupName: `zilla-plus-security-group-${id}`,
       });
 
-      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9096), 'Allow inbound traffic on Kafka ports');
-      zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp(), 'Allow all outbound TCP traffic');
+      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(publicPort));
+      zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp());
 
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
     const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
+    const keyName = zillaPlusContext.sshKey;
+    const instanceType = zillaPlusContext.instanceType ?? 't3.small';
 
-    const publicPort = publicVar.port ?? 9094;
-
-
-    if (!publicTlsCertificateViaAcm) {
-      cdk.aws_secretsmanager.Secret.fromSecretNameV2(this, 'PublicTlsCertificate', publicTlsCertificateKey);
+    let imageId =  zillaPlusContext.ami;
+    if (!imageId) {
+      const ami = ec2.MachineImage.lookup({
+        name: 'Aklivity Zilla Plus *',
+        filters: {
+          'product-code': ['ca5mgk85pjtbyuhtfluzisgzy'],
+          'is-public': ['true'],
+        },
+      });
+      imageId = ami.getImage(this).imageId;
     }
 
-    let keyName = zillaPlusContext.sshKey;
-    let acmYamlContent = '';
-    let enclavesAcmServiceStart = '';
-
-    if (publicTlsCertificateViaAcm) {
-      acmYamlContent = `
-enclave:
-  cpu_count: 2
-  memory_mib: 256
-
-options:
-  sync_interval_secs: 600
-
-tokens:
-  - label: acm-token-example
-    source:
-      Acm:
-        certificate_arn: '${publicTlsCertificateKey}'
-    refresh_interval_secs: 43200
-    pin: 1234
-`;
-      enclavesAcmServiceStart = `
-systemctl enable nitro-enclaves-acm.service
-systemctl start nitro-enclaves-acm.service
-`;
+    const data: TemplateData = {
+      name: 'iot',
     }
 
     const cloudwatch = zillaPlusContext.cloudwatch;
@@ -345,21 +272,6 @@ systemctl start nitro-enclaves-acm.service
       };
     }
 
-    const defaultInstanceType = publicTlsCertificateViaAcm ? 'c6i.xlarge' : 't3.small';
-    const instanceType = zillaPlusContext.instanceType ?? defaultInstanceType;
-
-    let imageId =  zillaPlusContext.ami;
-    if (!imageId) {
-      const ami = ec2.MachineImage.lookup({
-        name: 'Aklivity Zilla Plus *',
-        filters: {
-          'product-code': ['ca5mgk85pjtbyuhtfluzisgzy'],
-          'is-public': ['true'],
-        },
-      });
-      imageId = ami.getImage(this).imageId;
-    }
-
     const nlb = new elbv2.CfnLoadBalancer(this, `NetworkLoadBalancer-${id}`, {
       name: `nlb-${id}`,
       scheme: 'internet-facing',
@@ -386,23 +298,29 @@ systemctl start nitro-enclaves-acm.service
         },
       ],
     });
+    
+    const kafkaSaslUsername = `\${{aws.secrets.${mskCredentialsSecretName}#username}}`;
+    const kafkaSaslPassword = `\${{aws.secrets.${mskCredentialsSecretName}#password}}`;
+    const kafkaBootstrapServers = `['${mskBootstrapServers.split(",").join("','")}']`;
 
-    const externalHost = ["b-#.", publicWildcardDNS.split("*.")[1]].join("");
-    const internalHost = ["b-#.", mskWildcardDNS.split("*.")[1]].join("");    
-
-    data.public = {
-      ...data.public,
-      port: publicPort,
-      certificate: publicTlsCertificateKey,
-      wildcardDNS: publicWildcardDNS
+    data.kafka = {
+      servers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
     }
-    data.externalHost = externalHost;
-    data.internalHost = internalHost;
-    data.msk = {
-      ...data.msk,
-      port: mskPort,
-      wildcardDNS: mskWildcardDNS
+    data.public = {
+      port: publicPort,
+      tlsCertificateKey: publicTlsCertificateKey
+    }
+    data.topics = {
+      sessions: kafkaTopicMqttSessions,
+      messages: kafkaTopicMqttMessages,
+      retained: kafkaTopicMqttRetained
     };
+
+    const kafkaTopicCreationDisabled = zillaPlusContext.kafkaTopicCreationDisabled ?? false;
 
     const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
@@ -421,15 +339,36 @@ action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate
 runas=root
     `;
 
+    let kafkaTopicCreationCommand = "";
+
+    if (!kafkaTopicCreationDisabled) {
+      kafkaTopicCreationCommand = `
+wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
+tar -xzf kafka_2.13-3.5.1.tgz
+cd kafka_2.13-3.5.1/libs
+wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
+cd ../bin
+SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskCredentialsSecretName} --query SecretString --output text)
+USERNAME=$(echo $SECRET_STRING | jq -r '.username')
+PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
+
+cat <<EOF> client.properties
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
+security.protocol=SASL_SSL
+sasl.mechanism=SCRAM-SHA-512
+EOF
+./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact'
+./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
+./kafka-topics.sh --create --bootstrap-server ${mskBootstrapServers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttMessages}
+
+      `;
+    }
+
     const userData = `#!/bin/bash -xe
 yum update -y aws-cfn-bootstrap
-cat <<EOF > /etc/zilla/zilla.yaml
+cat <<'END_HELP' > /etc/zilla/zilla.yaml
 ${renderedYaml}
-EOF
-
-cat <<EOF > /etc/nitro_enclaves/acm.yaml
-${acmYamlContent}
-EOF
+END_HELP
 
 chown ec2-user:ec2-user /etc/zilla/zilla.yaml
 
@@ -453,12 +392,13 @@ systemctl enable cfn-hup
 systemctl start cfn-hup
 systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
-${enclavesAcmServiceStart}
 systemctl enable zilla-plus
 systemctl start zilla-plus
 
+${kafkaTopicCreationCommand}
+
     `;
-    
+
     const zillaPlusLaunchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
       launchTemplateData: {
         imageId: imageId,
@@ -472,9 +412,6 @@ systemctl start zilla-plus
         ],
         iamInstanceProfile: {
           name: zillaPlusRole,
-        },
-        enclaveOptions: {
-          enabled: publicTlsCertificateViaAcm,
         },
         keyName: keyName,
         userData: cdk.Fn.base64(userData)
@@ -498,5 +435,6 @@ systemctl start zilla-plus
       description: "Public DNS name of newly created NLB for Zilla Plus",
       value: nlb.attrDnsName 
     });
+
   }
 }

@@ -37,7 +37,7 @@ test('Secure Public Access Stack created', () => {
                       "vpcId": "vpc-12345",
                       "msk":
                       {
-                        "bootstrapServers": "b-1.mymskcluter.****.us-east-1.amazonaws.com:9096",
+                        "servers": "b-1.mymskcluter.****.us-east-1.amazonaws.com:9096",
                         "credentials": "AmazonMSK_Alice"
                       },
                       "public":

@@ -1,6 +1,6 @@
-# Web Streaming deploy via CDK
+# IOT Ingest and Control deploy via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Web Streaming using CDK.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IOT Ingest and Control using CDK.
 
 ## Prerequisites
 
@@ -70,19 +70,6 @@ List all secrets ub Secrets Manager that can be associated with MSK:
 aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
 ```
 
-### `mappings`: Kafka Topic Mappings
-
-```json
-    "mappings": 
-    [
-        {"topic": "<your kafka topic>"},
-        {"topic": "<your kafka topic>", "path": "<your custom path>"}
-    ]
-```
-
-This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<topic>`.
-To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
-
 ### `public` Zilla Plus variables
 
 ```json
@@ -105,13 +92,11 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
-
 #### `port`: Public TCP Port
 
-> Default: `7143`
+> Default: `8883`
 
-This variable defines the public port number to be used by REST and SSE clients.
-
+This variable defines the public port number to be used by IOT clients.
 
 ### `capacity`: Zilla Plus Capacity
 
@@ -139,6 +124,36 @@ VPC_ID=$(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "Clu
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[0].InternetGatewayId" --output text
 ```
 
+### Kafka topics
+
+```json
+      "topics":
+      {
+        "sessions": "<your sessions topic>",
+        "messages": "<your messages topic>",
+        "retained": "<your retained topic>"
+      }
+```
+
+By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the context variable `kafkaTopicCreationDisabled` to `true` and set the `sessions`, `messages`, and `retained` context variables in your `cdk.json` file under `zilla-plus` and `topics` object.
+
+#### `topics.sessions`: Kafka Topic for MQTT Sessions
+
+> Default: `mqtt-sessions`
+
+This variable defines the Kafka topic storing MQTT sessions with a cleanup policy set to "compact".
+
+#### `topics.messages`: Kafka Topic for MQTT Messages
+
+> Default: `mqtt-messages`
+
+This variable defines the Kafka topic storing MQTT messages with a cleanup policy set to "delete".
+
+#### `topics.retained`: Kafka Topic for MQTT Retained Messages
+
+> Default: `mqtt-retained`
+
+This variable defines the Kafka topic storing MQTT retained messages with a cleanup policy set to "compact".
 
 ### Custom Zilla Plus Role
 
@@ -164,7 +179,7 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 
 Note down the security group IDs (GroupId) of the desired security groups.
 
-### CloudWatch Integration
+#### CloudWatch Integration
 
 ```json
     "cloudwatch":
@@ -195,7 +210,7 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 ```
 
 This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
+In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logGroupName` under `zilla-plus` object in the `cloudwatch` variables section.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -203,33 +218,7 @@ In your `cdk.json` file add the desired CloudWatch Logs Group for variable name 
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
-
-### Enable JWT Access Tokens
-
-To enable the JWT authentication and API access control, you need to provide the `jwt` context variable. You will also need to set the JWT Issuer (`issuer`), JWT Audience (`audience`) and JWKS URL (`keys_url`) context variable inside the `jwt` object. Example:
-
-```json
-    "jwt": {
-      "issuer" : "https://auth.example.com",
-      "audience": "https://api.example.com",
-      "keysUrl": "https://{yourDomain}/.well-known/jwks.json"
-    }
-```
-
-
-### Enable Glue Schema Registry
-
-To enable the Glue Schema Registry for schema fetching, set the context variable `glueRegistry` to the name of the Glue Registry.
-
-1. List all Glue Registries:
-
-```bash
-aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
-```
-
-Note down the Glue Registry name (RegistryName) you want to use.
-
+In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metricsNamespace` under `zilla-plus` object in the `cloudwatch` variables section.
 
 ### Enable SSH Access
 
@@ -290,21 +279,19 @@ nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider. For example:
 
 ```bash
-X.X.X.X  web.example.aklivity.io
+X.X.X.X  mqtt.example.aklivity.io
 ```
 
-### Test the Zilla Plus REST and SSE
+### Test the Zilla Plus MQTT broker
 
-If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
+If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
 
 ```bash
-curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/<your path>"
+ mosquitto_sub --url mqtts://mqtt.example.aklivity.io/sensors/# -d
 ```
 
-Note that `your path` defaults to the exposed Kafka topic in your config.
-
-In another terminal, use `curl` to POST and notice the data arriving on your SSE stream.
+Open another terminal and publish to topic `sensors/one`.
 
 ```bash
-curl -d 'Hello, World' -X POST https://web.example.aklivity.io:7143/<your path>
+mosquitto_pub --url mqtts://mqtt.example.aklivity.io/sensors/one -m "Hello, World" -d
 ```

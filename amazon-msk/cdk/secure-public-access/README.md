@@ -41,12 +41,12 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
 ```json
     "msk":
     {
-        "bootstrapServers": "<Bootstrap Servers of your MSK cluster",
+        "servers": "<Bootstrap Servers of your MSK cluster",
         "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
     }
 ```
 
-#### `bootstrapServers`: MSK Bootstrap Servers and Authentication Method
+#### `servers`: MSK Bootstrap Servers and Authentication Method
 
 To get the bootstrap servers of the MSK cluster run:
 
@@ -57,7 +57,7 @@ aws kafka get-bootstrap-brokers \
     --output table
 ```
 
-Use the `Bootstrap Server` of your desired authentication method to set the `bootstrapServers` variable.
+Use the `Bootstrap Server` of your desired authentication method to set the `servers` variable.
 Set the desired client authentication method based on the MSK cluster setup, using `clientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
 
 ### `public` Zilla Plus variables
@@ -70,6 +70,11 @@ Set the desired client authentication method based on the MSK cluster setup, usi
         "port": "<your public port>"
     }
 ```
+
+#### `wildcardDNS`: Public Wildcard DNS
+
+This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
+It should match the wildcard DNS of the public TLS certificate.
 
 #### `certificate`: Public TLS Certificate Key
 
@@ -90,11 +95,6 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 ```
 
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
-
-#### `wildcardDNS`: Public Wildcard DNS
-
-This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
-It should match the wildcard DNS of the public TLS certificate.
 
 #### `port`: Public TCP Port
 

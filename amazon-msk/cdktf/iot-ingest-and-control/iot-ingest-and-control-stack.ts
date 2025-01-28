@@ -412,7 +412,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
     data.kafka = {
-      bootstrapServers: kafkaBootstrapServers,
+      servers: kafkaBootstrapServers,
       sasl : {
         username: kafkaSaslUsername,
         password: kafkaSaslPassword
