@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/secure-public-access.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/secure-private-access.ts",
   "watch": {
     "include": [
       "**"
@@ -19,16 +19,17 @@
   "context": {
     "zilla-plus":
     {
-      "vpcId": "<your VPC ID>",
+      "ami": "ami-00620c0c474ca36e4",
+      "vpcId": "vpc-0fb4525c5807cb3da",
       "msk":
       {
-        "servers": "<Bootstrap Servers of your MSK cluster>",
-        "clientAuthentication": "<MSK client authentication method: [mTLS, SASL/SCRAM or Unauthorized]>"
+        "servers": "boot-yk5dyqvz.c1.kafka-serverless.us-east-1.amazonaws.com:9098",
+        "subnetIds": ["subnet-0c0ae58d35944c648", "subnet-0a5fcd070980df586"]
       },
-      "public":
+      "private":
       {
         "wildcardDNS": "*.us-east-1.example.aklivity.io",
-        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL"
+        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.us-east-1.example.aklivity.io-LEsOe2"
       },
       "cloudwatch":
       {
