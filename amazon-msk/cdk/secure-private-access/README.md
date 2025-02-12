@@ -277,7 +277,7 @@ aws ec2 create-vpc-endpoint \
   --vpc-endpoint-type Interface
 ```
 
-Make sure to save the `VpcEndpointId` and the the first DNS Entry `DNSName`.
+Make sure to save the `VpcEndpointId` and the the first DNS Entry `DNSName` and its `HostedZoneID`.
 
 ### Accept the VPC Endpoint in your VPC Endpoint Service
 ```bash
@@ -291,30 +291,29 @@ For your client machine to be able to resolve the custom wilcard DNS configured 
 
 ```bash
 aws route53 create-hosted-zone \
-  --name example.aklivity.io \
-  --vpc VPCRegion=us-east-1,VPCId=vpc-09cb6e2141bdb7b37 \
+  --name us-east-1.example.aklivity.io \
+  --vpc VPCRegion=us-east-1,VPCId=<Your Client VPC ID> \
   --caller-reference <unique caller id> \
   --hosted-zone-config PrivateZone=true 
 ```
 
-Use the HostedZone.Id in your following command:
+Use the HostedZone.Id in your following command and the saved VPC Endpoint details. Change the Name of the record according to your custom domain.
 
 ```bash
 aws route53 change-resource-record-sets \
-  --hosted-zone-id /hostedzone/Z0357410VJ4A0M2XZFAK \
+  --hosted-zone-id <Your Private Hosted Zone ID> \
   --change-batch '{
     "Changes": [
       {
         "Action": "CREATE",
         "ResourceRecordSet": {
           "Name": "*.us-east-1.example.aklivity.io",
-          "Type": "CNAME",
-          "TTL": 60,
-          "ResourceRecords": [
-            {
-              "Value": "vpce-0ee315e6fc87716da-ia1ca1zt.vpce-svc-0816be0e665a42f9a.us-east-1.vpce.amazonaws.com"
-            }
-          ]
+          "Type": "A",
+          "AliasTarget": {
+            "HostedZoneId": "VPC Endpoint Hosted Zone Id of the DNS",
+            "DNSName": "VPC Endpoint DNS Name",
+            "EvaluateTargetHealth": false
+          }
         }
       }
     ]
@@ -375,10 +374,10 @@ This verifies connectivity to your MSK Serverless via Zilla Plus over a differen
 
 We can now verify that the Kafka client can successfully communicate with your MSK Serverless from your EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
 
-If using the wildcard DNS pattern `*.example.aklivity.io`, then we use the following server name for the Kafka client:
+If using the wildcard DNS pattern `*.us-east-1.example.aklivity.io`, then we use the following server name for the Kafka client:
 
 ```text
-boot.example.aklivity.io:9098
+boot.us-east-1.example.aklivity.io:9098
 ```
 
 Replace these bootstrap server names accordingly for your own custom wildcard DNS pattern.
@@ -388,5 +387,10 @@ Replace these bootstrap server names accordingly for your own custom wildcard DN
 Use the Kafka client to create a topic called zilla-proxy-test, replacing <bootstrap-server-names> in the command below with the proxy names of your Zilla proxy:
 
 ```bash
-bin/kafka-topics.sh --create --topic zilla-proxy-test --partitions 3 --replication-factor 2 --command-config client.properties --bootstrap-server <bootstrap-server-names>
+bin/kafka-topics.sh --create \
+    --topic zilla-proxy-test \
+    --partitions 3 \
+    --replication-factor 2 \
+    --command-config client.properties \
+    --bootstrap-server boot.us-east-1.example.aklivity.io:9098
 ```

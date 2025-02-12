@@ -19,17 +19,16 @@
   "context": {
     "zilla-plus":
     {
-      "ami": "ami-00620c0c474ca36e4",
-      "vpcId": "vpc-0fb4525c5807cb3da",
+      "vpcId": "<your VPC ID>",
       "msk":
       {
-        "servers": "boot-yk5dyqvz.c1.kafka-serverless.us-east-1.amazonaws.com:9098",
-        "subnetIds": ["subnet-0c0ae58d35944c648", "subnet-0a5fcd070980df586"]
+        "servers": "<Bootstrap Servers of your MSK Serverless>",
+        "subnetIds": ["<MSK serverless subnetId1>", "<MSK serverless subnetId2>"]
       },
       "private":
       {
-        "wildcardDNS": "*.example.aklivity.io",
-        "certificate": "arn:aws:acm:us-east-1:445711703002:certificate/a63b238e-6055-490a-a7b8-16e6c5dd8fe4"
+        "wildcardDNS": "<your wildcard dns>",
+        "certificate": "<your tls certificate key ARN>"
       },
       "cloudwatch":
       {

@@ -27,8 +27,8 @@
       },
       "public":
       {
-        "wildcardDNS": "*.us-east-1.example.aklivity.io",
-        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-9-u4J0YL"
+        "wildcardDNS": "<your public wildcard dns>",
+        "certificate": "<your public tls certificate key ARN>"
       },
       "cloudwatch":
       {

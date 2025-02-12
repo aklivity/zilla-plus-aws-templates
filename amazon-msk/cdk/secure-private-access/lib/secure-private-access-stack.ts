@@ -92,17 +92,26 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
     }
 
+    const privateTlsCertificateViaAcm: boolean = privateTlsCertificateKey.startsWith("arn:aws:acm");
 
-    const services = {
+    let services: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
       "ssm": ec2.InterfaceVpcEndpointAwsService.SSM,
       "secretsmanager": ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
       "monitoring": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING,
       "cloudwatch": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
       "cloudformation": ec2.InterfaceVpcEndpointAwsService.CLOUDFORMATION,
       "ssm_messages": ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
-      "ec2_messages": ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES
+      "ec2_messages": ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
     };
     
+    if (privateTlsCertificateViaAcm) {
+      services = {
+        ...services,
+        "acm-pca": new ec2.InterfaceVpcEndpointAwsService("acm-pca"),
+        "kms": ec2.InterfaceVpcEndpointAwsService.KMS
+      }
+    }
+
     for (const serviceKey in services) {
       if (services.hasOwnProperty(serviceKey)) {
         const service = services[serviceKey as keyof typeof services];
@@ -125,7 +134,6 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
     const mskBootstrapCommonPart = addressParts.slice(1).join("-");
     const mskWildcardDNS = `*-${mskBootstrapCommonPart}`;
 
-    const privateTlsCertificateViaAcm: boolean = privateTlsCertificateKey.startsWith("arn:aws:acm");
 
     const data: TemplateData = {
       name: 'private',

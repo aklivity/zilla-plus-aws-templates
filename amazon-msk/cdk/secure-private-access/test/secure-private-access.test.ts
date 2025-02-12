@@ -38,7 +38,7 @@ test('Secure Private Access Stack created', () => {
                     "msk":
                     {
                         "servers": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098",
-                        "subnetIds": ["subnet-1234", "subnet-5678"]
+                        "subnetIds": ["subnet-1", "subnet-2"]
                     },
                     "private":
                     {
@@ -49,7 +49,7 @@ test('Secure Private Access Stack created', () => {
             }
         }
     );
-    const stack = new ExampleCluster.ZillaPlusSecurePublicAccessStack(app, 'MyTestStack', {
+    const stack = new ExampleCluster.ZillaPlusSecurePrivateAccessStack(app, 'MyTestStack', {
         env: {
             account: '12345678',
             region: 'us-east-1'
@@ -71,18 +71,14 @@ test('Secure Private Access Stack created', () => {
             }
         ],
         VPCZoneIdentifier: [
-            {
-                "Ref": "Subnet1"
-            },
-            {
-                "Ref": "Subnet2"
-            }
-        ]
+            "subnet-1",
+            "subnet-2"
+           ]
     });
 
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
         Name: `nlb-tg-MyTestStack`,
-        Port: 9094,
+        Port: 9098,
         Protocol: `TCP`,
         VpcId: `vpc-12345`
     });
@@ -92,7 +88,7 @@ test('Secure Private Access Stack created', () => {
         {
             Ref: `NetworkLoadBalancerMyTestStack`
         },
-        Port: 9094,
+        Port: 9098,
         Protocol: `TCP`,
     });
     
@@ -100,15 +96,11 @@ test('Secure Private Access Stack created', () => {
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
         IpAddressType: `ipv4`,
         Name: `nlb-MyTestStack`,
-        Scheme: `internet-facing`,
+        Scheme: `internal`,
         Subnets: [
-            {
-                "Ref": "Subnet1"
-            },
-            {
-                "Ref": "Subnet2"
-            }
-        ],
+            "subnet-1",
+            "subnet-2"
+           ],
         Type: `network`
     });
 
