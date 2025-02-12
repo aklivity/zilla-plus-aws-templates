@@ -22,7 +22,7 @@ This guide will help you gather the necessary AWS values required to configure a
    ```
 1. Veirfy that your MSK Serverless Security Group allows inbound traffic on port `9098`. If not make sure to allow that.
 
-### List the inbound rules for MSK Serverless Security Group
+#### List the inbound rules for MSK Serverless Security Group
 
 ```bash
 aws ec2 describe-security-groups \
@@ -56,20 +56,20 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     }
 ```
 
-#### `servers`: MSK Bootstrap Servers and Authentication Method
+#### `servers`: MSK Bootstrap Servers
 
-To get the bootstrap servers of the MSK cluster run:
+To get the bootstrap servers of the MSK Serverless Cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
     --cluster-arn <msk-serverless-arn> \
-    --query '{BootstrapBrokerStringTls: BootstrapBrokerStringTls, BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram, BootstrapBrokerStringSaslIam: BootstrapBrokerStringSaslIam}' \
+    --query '{BootstrapBrokerStringSaslIam: BootstrapBrokerStringSaslIam}' \
     --output table
 ```
 
-Use the `Bootstrap Server` of your desired authentication method to set the `servers` variable.
-Set the desired client authentication method based on the MSK cluster setup, using `clientAuthentication` variable. Allowed values are: `SASL/SCRAM`, `mTLS`, `Unauthorized`.
+Use the `IAM Bootstrap Server` to set the `servers` variable.
 
+#### `subnetIds`: Subnets of your deployed MSK Serverless Cluster
 
 ```bash
 aws kafka list-clusters-v2 \
@@ -263,7 +263,7 @@ Stack ARN:
 arn:aws:cloudformation:us-east-1:<account_id>:stack/SecurePrivateAccessStack/abcd1234
 ```
 
-Once your stack is deployed, note down the VPC Endpoint Service Id and the VPC Endpoint Service Name, as you'll need this in the following steps when you add the VPC Endpoint from the client VPC.
+Once your stack is deployed, note the VPC Endpoint Service Id and the VPC Endpoint Service Name, as you'll need this in the following steps when you add the VPC Endpoint from the client VPC.
 
 ## Connect to your MSK Serverless from different VPC
 ### Add a VPC endpoint in the client VPC
@@ -322,6 +322,13 @@ aws route53 change-resource-record-sets \
 ```
 
 
+### Create IAM Role for MSK Serverless
+
+Follow the AWS guide to create an IAM Policy and Role that grants access to certain Kafka operations.
+https://docs.aws.amazon.com/msk/latest/developerguide/create-iam-role.html
+
+You can use the created role in the next step for client machine that assumes this role and uses it.
+
 ### Launch Client EC2 Instance in different VPC and Install the Kafka Client
 
 Follow the AWS guide to launch an EC2 instance to be able to connect to MSK Serverless.
@@ -362,16 +369,11 @@ sasl.login.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLog
 sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLoginCallbackHandler
 ```
 
-TODO:
-- add iam role readme
-- add steps to add more supported regions, point to the filed issue that limits us to automate this
-
-
 ### Test the Kafka Client
 
-This verifies internet connectivity to your MSK Serverless via Zilla Plus.
+This verifies connectivity to your MSK Serverless via Zilla Plus over a different VPC.
 
-We can now verify that the Kafka client can successfully communicate with your MSK Serverless from your EC2 instance running in a different VPC to create a topic, then publish and subscribe to the same topic.
+We can now verify that the Kafka client can successfully communicate with your MSK Serverless from your EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
 
 If using the wildcard DNS pattern `*.example.aklivity.io`, then we use the following server name for the Kafka client:
 
@@ -383,8 +385,8 @@ Replace these bootstrap server names accordingly for your own custom wildcard DN
 
 #### Create a Topic
 
-Use the Kafka client to create a topic called zilla-proxy-test, replacing <tls-bootstrap-server-names> in the command below with the TLS proxy names of your Zilla proxy:
+Use the Kafka client to create a topic called zilla-proxy-test, replacing <bootstrap-server-names> in the command below with the proxy names of your Zilla proxy:
 
 ```bash
-bin/kafka-topics.sh --create --topic zilla-proxy-test --partitions 3 --replication-factor 2 --command-config client.properties --bootstrap-server <tls-bootstrap-server-names>
+bin/kafka-topics.sh --create --topic zilla-proxy-test --partitions 3 --replication-factor 2 --command-config client.properties --bootstrap-server <bootstrap-server-names>
 ```

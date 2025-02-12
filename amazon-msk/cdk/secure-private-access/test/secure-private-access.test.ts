@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as ExampleCluster from '../lib/secure-private-access-stack';
 import { Template } from 'aws-cdk-lib/assertions';
 
-test('Secure Public Access Stack created', () => {
+test('Secure Private Access Stack created', () => {
 
     const app = new cdk.App( {
             context: {
@@ -37,11 +37,10 @@ test('Secure Public Access Stack created', () => {
                     "vpcId": "vpc-12345",
                     "msk":
                     {
-                        "servers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9096",
-                        "clientAuthentication": "SASL/SCRAM",
-                        "certificateAuthorityArn": "arn:aws:acm-pca:us-east-1:****:certificate-authority/*********",
+                        "servers": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098",
+                        "subnetIds": ["subnet-1234", "subnet-5678"]
                     },
-                    "public":
+                    "private":
                     {
                         "wildcardDNS": "*.example.aklivity.io",
                         "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"

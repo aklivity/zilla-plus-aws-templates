@@ -28,8 +28,8 @@
       },
       "private":
       {
-        "wildcardDNS": "*.us-east-1.example.aklivity.io",
-        "certificate": "arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.us-east-1.example.aklivity.io-LEsOe2"
+        "wildcardDNS": "*.example.aklivity.io",
+        "certificate": "arn:aws:acm:us-east-1:445711703002:certificate/a63b238e-6055-490a-a7b8-16e6c5dd8fe4"
       },
       "cloudwatch":
       {
