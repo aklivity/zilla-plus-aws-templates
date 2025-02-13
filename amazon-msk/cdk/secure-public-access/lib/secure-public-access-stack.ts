@@ -15,6 +15,7 @@ interface TemplateData {
   mTLS?: boolean;
   externalHost?: string;
   internalHost?: string;
+  defaultInternalHost?: string;
   msk?: object;
 }
 
@@ -53,7 +54,13 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     ];
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskBootstrapServers = msk.servers;
-    const mskClientAuthentication = msk.clientAuthentication;
+    let mskClientAuthentication = msk.clientAuthentication;
+
+    const serverless = mskBootstrapServers.includes("serverless");
+    if (serverless) {
+      mskClientAuthentication = "IAM";
+    }
+
 
     const publicVar = zillaPlusContext.public;
     const mandatoryPublicVariables = [
@@ -136,9 +143,17 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
     const serverAddress = domainParts[0];
     const mskPort = domainParts[1];
 
-    const addressParts = serverAddress.split('.');
-    const mskBootstrapCommonPart = addressParts.slice(1).join(".");
-    const mskWildcardDNS = `*.${mskBootstrapCommonPart}`;
+    let mskWildcardDNS;
+    if (serverless) {
+      const addressParts = serverAddress.split('-');
+      const mskBootstrapCommonPart = addressParts.slice(1).join("-");
+      mskWildcardDNS = `*-${mskBootstrapCommonPart}`;  
+    }
+    else {
+      const addressParts = serverAddress.split('.');
+      const mskBootstrapCommonPart = addressParts.slice(1).join(".");
+      mskWildcardDNS = `*.${mskBootstrapCommonPart}`;
+    }
 
     const mTLSEnabled = mskClientAuthentication === 'mTLS';
     const publicTlsCertificateViaAcm: boolean = publicTlsCertificateKey.startsWith("arn:aws:acm");
@@ -273,7 +288,7 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
         securityGroupName: `zilla-plus-security-group-${id}`,
       });
 
-      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9096), 'Allow inbound traffic on Kafka ports');
+      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcpRange(9092, 9098), 'Allow inbound traffic on Kafka ports');
       zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp(), 'Allow all outbound TCP traffic');
 
       zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
@@ -281,7 +296,8 @@ export class ZillaPlusSecurePublicAccessStack extends cdk.Stack {
 
     const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
 
-    const publicPort = publicVar.port ?? 9094;
+    const defaultPublicPort = serverless ? 9098 : 9094;
+    const publicPort = publicVar.port ?? defaultPublicPort;
 
 
     if (!publicTlsCertificateViaAcm) {
@@ -387,8 +403,16 @@ systemctl start nitro-enclaves-acm.service
       ],
     });
 
+    let internalHost;
+    let defaultInternalHost;
     const externalHost = ["b-#.", publicWildcardDNS.split("*.")[1]].join("");
-    const internalHost = ["b-#.", mskWildcardDNS.split("*.")[1]].join("");    
+    if (serverless) {
+      internalHost = ["b#-", mskWildcardDNS.split("*-")[1]].join("");    
+      defaultInternalHost = ["boot-", mskWildcardDNS.split("*-")[1]].join("");
+    } 
+    else {
+      internalHost = ["b-#.", mskWildcardDNS.split("*.")[1]].join("");   
+    }
 
     data.public = {
       ...data.public,
@@ -398,6 +422,7 @@ systemctl start nitro-enclaves-acm.service
     }
     data.externalHost = externalHost;
     data.internalHost = internalHost;
+    data.defaultInternalHost = defaultInternalHost;
     data.msk = {
       ...data.msk,
       port: mskPort,

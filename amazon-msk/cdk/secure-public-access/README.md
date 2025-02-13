@@ -289,6 +289,36 @@ nslookup network-load-balancer-86334a80cbd16ec2.elb.us-east-2.amazonaws.com
 
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider.
 
+#### DNS setup for MSK Serverless
+MSK Serverless requires you to add ALL the advertised host names in your DNS resolver. We recommend to use `dnsmasq` for local setup.
+
+**Install dnsmasq**
+
+```bash
+sudo apt update && sudo apt install dnsmasq -y
+```
+
+**Configure it to resolve all b-*.example.aklivity.io to a specific IP.** 
+
+Edit /etc/dnsmasq.conf and add:
+
+```text
+address=/b-/.example.aklivity.io/<your NLB IP address>
+address=boot.example.aklivity.io/<your NLB IP address>
+```
+
+**Restart dnsmasq**
+```bash
+sudo systemctl restart dnsmasq
+```
+
+**Ensure your system uses dnsmasq for lookups**
+
+ Check `/etc/resolv.conf` and set:
+```text
+nameserver 127.0.0.1
+```
+
 ### Install the Kafka Client
 
 First, we must install a Java runtime that can be used by the Kafka client.
