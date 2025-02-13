@@ -105,10 +105,17 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
     };
     
     if (privateTlsCertificateViaAcm) {
+      vpc.addGatewayEndpoint("S3GatewayEndpoint", {
+        service: ec2.GatewayVpcEndpointAwsService.S3,
+        subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(subnetIds)] }],
+      });
+
       services = {
         ...services,
         "acm-pca": new ec2.InterfaceVpcEndpointAwsService("acm-pca"),
-        "kms": ec2.InterfaceVpcEndpointAwsService.KMS
+        "kms": ec2.InterfaceVpcEndpointAwsService.KMS,
+        "s3": ec2.InterfaceVpcEndpointAwsService.S3,
+        "iam": ec2.InterfaceVpcEndpointAwsService.IAM
       }
     }
 
@@ -201,31 +208,31 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       });
 
       if (privateTlsCertificateViaAcm) {
+        const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
+          certificateArn: privateTlsCertificateKey,
+          roleArn: iamRole.roleArn,
+        });
+
         iamPolicy.addStatements(
           new iam.PolicyStatement({
             sid: 's3Statement',
             effect: iam.Effect.ALLOW,
             actions: ['s3:GetObject'],
-            resources: ['arn:aws:s3:::*/*'],
+            resources: [`arn:aws:s3:::${association.attrCertificateS3BucketName}/*`],
           }),
           new iam.PolicyStatement({
             sid: 'kmsDecryptStatement',
             effect: iam.Effect.ALLOW,
             actions: ['kms:Decrypt'],
-            resources: ['arn:aws:kms:*:*:key/*'],
+            resources: [`arn:aws:kms:${this.region}:*:key/${association.attrEncryptionKmsKeyId}`],
           }),
           new iam.PolicyStatement({
             sid: 'getRoleStatement',
             effect: iam.Effect.ALLOW,
             actions: ['iam:GetRole'],
-            resources: [`arn:aws:iam::*:role/${iamRole.roleName}`],
+            resources: [`*`],
           })
         );
-
-        new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
-          certificateArn: privateTlsCertificateKey,
-          roleArn: iamRole.roleArn,
-        });
       }
 
       new iam.CfnPolicy(this, `ZillaPlusRolePolicy-${id}`, {
@@ -234,7 +241,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         policyDocument: iamPolicy.toJSON(),
       });
 
-        zillaPlusRole = iamInstanceProfile.ref;
+      zillaPlusRole = iamInstanceProfile.ref;
     }
 
     const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
