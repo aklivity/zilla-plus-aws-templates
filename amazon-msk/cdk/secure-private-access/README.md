@@ -156,7 +156,9 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
-> Default: `t3.small`
+> Default: `t3.small` AWS Secrets Manager
+
+> Default: `c6i.xlarge` AWS Certificate Manager (requred by AWS Nitro Enclaves)
 
 This variable defines the initial number of Zilla Plus instances.
 
