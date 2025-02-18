@@ -1,10 +1,10 @@
 # Secure Private Access deploy via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access using CDK that allows Kafka Clients to reach a MSK Serverless cluster from an authorized VPC, even if the client VPC is owned by a different account.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access using CDK that allows Kafka Clients to reach a MSK Serverless cluster from an authorized VPC, even if the client VPC is owned by a different AWS account.
 
 ## Prerequisites
 
-1. Be subscribed to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
+1. Subscribe to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
 1. [Install Node.js](https://nodejs.org/en/download/package-manager).
 1. [Install AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html).
 1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
@@ -123,7 +123,7 @@ aws acm list-certificates \
 
 Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `certificate` variable.
 
-Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use ACM for Nitro Enclaves to install the certificate and seamlessly replace expiring certificates.
+Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
 
 List all secrets in Secrets Manager:
@@ -158,7 +158,7 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 > Default: `t3.small` AWS Secrets Manager
 
-> Default: `c6i.xlarge` AWS Certificate Manager (requred by AWS Nitro Enclaves)
+> Default: `c6i.xlarge` AWS Certificate Manager (required by [ACM for Nitro Enclaves])
 
 This variable defines the initial number of Zilla Plus instances.
 
@@ -475,3 +475,5 @@ Then on the client EC2 instance in a different region, follow the `Connect to yo
 ```bash
 export AWS_REGION=<target region>
 ```
+
+[ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html
