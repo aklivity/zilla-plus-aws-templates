@@ -1,6 +1,6 @@
 # Secure Private Access deploy via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access using CDK that allows Kafka Clients to reach MSK Serverless inside a different VPC, even if the VPC is in a different region.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access using CDK that allows Kafka Clients to reach an MSK Serverless cluster from an authorized VPC, even if the client VPC is owned by a different account.
 
 ## Prerequisites
 
@@ -20,9 +20,9 @@ This guide will help you gather the necessary AWS values required to configure a
    secret_key     ****************XXXX              env
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
-1. Veirfy that your MSK Serverless Security Group allows inbound traffic on port `9098`. If not make sure to allow that.
+1. Verify that your MSK Serverless cluster Security Group allows inbound traffic on port `9098`.
 
-#### List the inbound rules for MSK Serverless Security Group
+#### List the inbound rules for Security Group
 
 ```bash
 aws ec2 describe-security-groups \
@@ -34,16 +34,24 @@ aws ec2 describe-security-groups \
   --output json
 ```
 
+If the Security Groups do not allow inbound traffic on port `9098`, then make sure to allow that and re-verify.
 
 ## Required CDK Context Variables
 
-You can set these variables in your `context` in `cdk.json` file under `zilla-plus` object.
+You can set these `context` variables via `cdk.json`, under `zilla-plus` object.
 
 ### `vpcId`: VPC ID
+
 The VPC ID where the MSK Serverless lives. 
 
 ```bash
-aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn <msk-cluster-arn> --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" --output text) --query "Subnets[0].VpcId" --output text
+aws ec2 describe-subnets \
+  --subnet-ids $(aws kafka list-clusters-v2 \
+      --cluster-type SERVERLESS \
+      --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
+      --output text) \
+  --query "Subnets[0].VpcId" \
+  --output text
 ```
 
 ### `msk` related variables
@@ -52,22 +60,22 @@ aws ec2 describe-subnets --subnet-ids $(aws kafka describe-cluster --cluster-arn
     "msk":
     {
         "servers": "<Bootstrap Servers of your MSK Serverless>",
-        "subnetIds": "<Subnet IDs of your MSK Serverless>"
+        "subnetIds": ["<MSK Serverless subnetId1>", "<MSK Serverless subnetId2>"]
     }
 ```
 
-#### `servers`: MSK Bootstrap Servers
+#### `servers`: MSK Serverless Bootstrap Servers
 
 To get the bootstrap servers of the MSK Serverless Cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
     --cluster-arn <msk-serverless-arn> \
-    --query '{BootstrapBrokerStringSaslIam: BootstrapBrokerStringSaslIam}' \
+    --query '{"IAM Bootstrap Server": BootstrapBrokerStringSaslIam}' \
     --output table
 ```
 
-Use the `IAM Bootstrap Server` to set the `servers` variable.
+Set the `IAM Bootstrap Server` to use for Zilla Plus via `cdk.json`, in `zilla-plus` `msk` `servers` variable.
 
 #### `subnetIds`: Subnets of your deployed MSK Serverless Cluster
 
@@ -77,6 +85,9 @@ aws kafka list-clusters-v2 \
   --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
   --output table
 ```
+
+Set the Subnet IDs to use for Zilla Plus via `cdk.json`, in `zilla-plus` `msk` `subnetIds` variable.
+
 
 ### `private` Zilla Plus variables
 
@@ -89,43 +100,59 @@ aws kafka list-clusters-v2 \
     }
 ```
 
-#### `wildcardDNS`: Private Wildcard DNS
+#### `wildcardDNS`: Zilla Plus Wildcard DNS
 
 This variable defines the private wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
 It should match the wildcard DNS of the private TLS certificate.
 
-#### `certificate`: Private TLS Certificate Key
+Set the wildcard DNS pattern to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `wildcardDNS` variable.
+
+
+#### `certificate`: Zilla Plus TLS Certificate ARN
 
 You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
 
 List all certificates in Certificate Manager:
 
 ```bash
-aws acm list-certificates --certificate-statuses ISSUED --query 'CertificateSummaryList[*].[DomainName,CertificateArn]' --output table
+aws acm list-certificates \
+  --certificate-statuses ISSUED \
+  --query 'CertificateSummaryList[*].[DomainName,CertificateArn]' \
+  --output table
 ```
 
-Find and note down the ARN of your TLS certificate.
+Set the AWS Certificate Manager ARN to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `certificate` variable.
+
+Note: if you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use ACM for Nitro Enclaves to install the certificate and seamlessly replace expiring certificates.
+
 
 List all secrets in Secrets Manager:
 
 ```bash
-aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output table
+aws secretsmanager list-secrets \
+  --query 'SecretList[*].[Name,ARN]' \
+  --output table
 ```
 
-Find and note down the ARN of the secret that contains your TLS certificate private key.
+Alternatively, set the AWS Secrets Manager ARN to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `certificate` variable.
 
-#### `port`: TCP Port
+#### `port`: Zilla Plus Port
 
 > Default: `9098`
 
 This variable defines the port number to be used by Kafka clients.
 
+Optionally override the default port to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `port` variable.
 
-### `capacity`: Zilla Plus Capacity
+
+### `capacity`: Zilla Plus EC2 Instances
 
 > Default: `2`
 
 This variable defines the initial number of Zilla Plus instances.
+
+Optionally override the default initial number of instances to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `capacity` variable.
+
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -133,39 +160,46 @@ This variable defines the initial number of Zilla Plus instances.
 
 This variable defines the initial number of Zilla Plus instances.
 
-## Optional Features
+Optionally override the default instance type to use for Zilla Plus via `cdk.json`, in `zilla-plus` `private` `instanceType` variable.
 
-These features all have default values and can be configured using cdk context variables. If you don't plan to configure any of these features you can skip this section and go to the [Deploy stack using CDK](#deploy-stack-using-cdk) section.
 
-### TLS Certificate via AWS Certificate Manager for Nitro Enclaves
+### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
-If you want to enable Zilla-plus Nitro Enclaves support all you have to do is provide the `private.certificate` context variable via ACM.
+> Default: (generated)
 
-### Custom Zilla Plus Role
-
-By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you want, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
+By default the deployment creates the Zilla Plus Role with the necessary roles and policies. If you prefer, you can specify your own role by setting `roleName` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all IAM roles:
 
 ```bash
-aws iam list-roles --query 'Roles[*].[RoleName,Arn]' --output table
+aws iam list-roles \
+  --query 'Roles[*].[RoleName,Arn]' \
+  --output table
 ```
 
-Note down the role name `RoleName` of the desired IAM role.
+Optionally override the assumed role (RoleName) to use for Zilla Plus via `cdk.json`, under `zilla-plus` `roleName`.
 
-### Custom Zilla Plus Security Groups
 
-By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you want, you can specify your own security group by setting `securityGroups` context variable in your `cdk.json` under `zilla-plus` object.
+### `securityGroups`: Zilla Plus EC2 Instance Security Groups
+
+> Default: (generated)
+
+By default the deployment creates the Zilla Plus Security Group with the necessary ports to be open. If you prefer, you can specify your own security group by setting `securityGroups` context variable in your `cdk.json` under `zilla-plus` object.
 
 List all security groups:
 
 ```bash
-aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]' --output table
+aws ec2 describe-security-groups \
+  --query 'SecurityGroups[*].[GroupId, GroupName]' \
+  --output table
 ```
 
-Note down the security group IDs (GroupId) of the desired security groups.
+Optionally override the security group IDs (GroupId) to use for Zilla Plus via `cdk.json`, under `zilla-plus` `securityGroups`.
 
-### CloudWatch Integration
+
+### `cloudwatch` Zilla Plus variables
+
+> Default: (generated)
 
 ```json
     "cloudwatch":
@@ -182,41 +216,56 @@ Note down the security group IDs (GroupId) of the desired security groups.
     }
 ```
 
-By default CloudWatch metrics and logging is enabled. To disable CloudWatch logging and metrics, set the `cloudwatch.disabled` context variable to `true`.
+By default CloudWatch metrics and logging is enabled.
+
+Optionally disable CloudWatch logging and metrics for Zilla Plus via `cdk.json`, under `zilla-plus` `cloudwatch` by setting `disabled` to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
-If you want to define your own, follow these steps.
+
+If you prefer to define your own, follow these steps.
 
 #### List All CloudWatch Log Groups
 
 ```bash
-aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
+aws logs describe-log-groups \
+  --query 'logGroups[*].[logGroupName]' \
+  --output table
 ```
 
-This command will return a table listing the names of all the log groups in your CloudWatch.
-In your `cdk.json` file add the desired CloudWatch Logs Group for variable name `logs.group` under `zilla-plus` object in the `cloudwatch` variables section.
+This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
+
+Optionally override the CloudWatch Logs Group via `cdk.json`, under `zilla-plus` `cloudwatch` `logs` `group`.
 
 #### List All CloudWatch Custom Metric Namespaces
 
 ```bash
-aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
+aws cloudwatch list-metrics \
+  --query "Metrics[?\!contains(Namespace, 'AWS')].Namespace" \
+  --output table \
+| sort \
+| uniq 
 ```
 
-In your `cdk.json` file add the desired CloudWatch Metrics Namespace for variable name `metrics.namespace` under `zilla-plus` object in the `cloudwatch` variables section.
+Optionally override the CloudWatch Metrics Namespace via `cdk.json`, in `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
+
 
 ### Enable SSH Access
 
-To enable SSH access to the instances you will need the name of an existing EC2 KeyPair to set the `sshKey` context variable under `zilla-plus` object.
+> Default: (none)
+
+To enable SSH access to the instances you will need the name of an existing EC2 KeyPair.
 
 List all EC2 KeyPairs:
 
 ```bash
-aws ec2 describe-key-pairs --query 'KeyPairs[*].[KeyName]' --output table
+aws ec2 describe-key-pairs \
+  --query 'KeyPairs[*].[KeyName]' \
+  --output table
 ```
 
-Note down the KeyPair name `KeyName` you want to use.
+Optionally specify the KeyPair name via `cdk.json`, in `zilla-plus` `sshKey` variable.
 
 ## Deploy stack using CDK
 
@@ -254,7 +303,7 @@ Deploy your resources to AWS:
 cdk deploy
 ```
 
-Sample outputs:
+Sample output:
 ```bash
 Outputs:
 SecurePrivateAccessStack.VpcEndpointServiceId = vpce-svc-1234567
@@ -263,10 +312,12 @@ Stack ARN:
 arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccessStack/abcd1234
 ```
 
-Once your stack is deployed, note the VPC Endpoint Service Id and the VPC Endpoint Service Name, as you'll need this in the following steps when you add the VPC Endpoint from the client VPC.
+Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC Endpoint Service Name`, as you'll need these in the following steps when you add the `VPC Endpoint` from the client VPC.
 
-## Connect to your MSK Serverless from different VPC
+## Connect to your MSK Serverless from a different VPC
+
 ### Add a VPC endpoint in the client VPC
+
 You need to add a VPC Endpoint pointing to the Zilla Plus's VPC Endpoint Service in your client VPC. 
 
 ```bash
@@ -277,9 +328,10 @@ aws ec2 create-vpc-endpoint \
   --vpc-endpoint-type Interface
 ```
 
-Make sure to save the `VpcEndpointId` and the the first DNS Entry `DNSName` and its `HostedZoneID`.
+The `create-vpc-endpoint` response returns the newly created `VpcEndpointId` which is needed for the remaining steps.
 
 ### Accept the VPC Endpoint in your VPC Endpoint Service
+
 ```bash
 aws ec2 accept-vpc-endpoint-connections \
   --service-id <VPC Endpoint Service ID> \
@@ -287,8 +339,12 @@ aws ec2 accept-vpc-endpoint-connections \
 ```
 
 ### Add Route 53 Private Hosted Zone
-For your client machine to be able to resolve the custom wilcard DNS configured for Zilla, you need to add a Route 53 Private Hosted Zone, with a `CNAME` record that resolved the custom domain to your previously created VPC Endpoint DNS name.
 
+For your client machine to be able to resolve the custom wilcard DNS configured for Zilla Plus, you need to add a Route 53 Private Hosted Zone, with an `ALIAS` record that resolves the wildcard custom domain to the client VPC Endpoint DNS name.
+
+First, create an empty Private Hosted Zone.
+
+Note: change the `Name` of the hosted zone according to your custom domain.
 ```bash
 aws route53 create-hosted-zone \
   --name example.aklivity.io \
@@ -296,12 +352,24 @@ aws route53 create-hosted-zone \
   --caller-reference <unique caller id> \
   --hosted-zone-config PrivateZone=true 
 ```
+The `create-hosted-zone` response includes the newly created custom domain `HostedZone` `Id` of the form `Z##########` which is needed to create DNS records within the hosted zone.
 
-Use the HostedZone.Id in your following command and the saved VPC Endpoint details. Change the Name of the record according to your custom domain.
+Lookup the `VPC Endpoint` `HostedZoneId` and `DnsName` so we can create the `ALIAS` record.
+```
+aws ec2 describe-vpc-endpoints \
+  --vpc-endpoint-ids <Your Client VPC ID> \
+  --query "VpcEndpoints[*].[VpcEndpointId,DnsEntries]"
+```
+
+Create the wildcard custom domain DNS record in the Private Hosted Zone.
+ - use the custom domain `HostedZone` `Id` from `create-hosted-zone` above
+ - use the `VPC Endpoint` first entry `DnsName` and `HostedZoneId` from `describe-vpc-endpoints` above
+
+Note: change the `Name` of the record according to your custom domain.
 
 ```bash
 aws route53 change-resource-record-sets \
-  --hosted-zone-id <Your Private Hosted Zone ID> \
+  --hosted-zone-id <Your Custom Domain Private Hosted Zone ID> \
   --change-batch '{
     "Changes": [
       {
@@ -396,10 +464,11 @@ bin/kafka-topics.sh --create \
 ```
 
 
-### Reaching MSK Serverless from different region
-Zilla plus allows you to reach MSK Serverless from a different region (not best practice according to AWS). If you want to enable that, you need to add the desired region for your VPC Endpoint Service which the stack created for Zilla Plus in the `Supported regions` section.
+### Reaching MSK Serverless from a different region
 
-Also on the client machine, you have to set the target region so the AWS IAM authentication module can figure out where it should authenticate to.
+Although same region connectivity is naturally considered best practice, Zilla Plus does not prevent you from reaching an MSK Serverless cluster across regions if needed. First add the desired client region to the `Supported regions` section of the `VPC Endpoint Service` created during deployment of this Zilla Plus stack.
+
+Then on the client machine, follow the `Connect to your MSK Serverless from a different VPC` steps above to create the cross-region `VPC Endpoint` and set the target region so the AWS IAM login module can authenticate properly to the MSK Serverless cluster.
 ```bash
 export AWS_REGION=<target region>
 ```
