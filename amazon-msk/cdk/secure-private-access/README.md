@@ -352,12 +352,12 @@ aws route53 create-hosted-zone \
   --caller-reference <unique caller id> \
   --hosted-zone-config PrivateZone=true 
 ```
-The `create-hosted-zone` response includes the newly created custom domain `HostedZone` `Id` of the form `Z##########` which is needed to create DNS records within the hosted zone.
+The `create-hosted-zone` response includes the newly created custom domain `HostedZone` `Id` in `Z##########` format, which is needed to create DNS records within the hosted zone.
 
 Lookup the `VPC Endpoint` `HostedZoneId` and `DnsName` so we can create the `ALIAS` record.
 ```
 aws ec2 describe-vpc-endpoints \
-  --vpc-endpoint-ids <Your Client VPC ID> \
+  --vpc-endpoint-ids <Your Client VPC Endpoint ID> \
   --query "VpcEndpoints[*].[VpcEndpointId,DnsEntries]"
 ```
 
