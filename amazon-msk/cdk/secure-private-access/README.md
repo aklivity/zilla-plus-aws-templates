@@ -42,7 +42,7 @@ You can set these `context` variables via `cdk.json`, under `zilla-plus` object.
 
 ### `vpcId`: VPC ID
 
-The VPC ID where the MSK Serverless lives. 
+The VPC ID where the MSK Serverless cluster is . 
 
 ```bash
 aws ec2 describe-subnets \
