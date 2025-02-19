@@ -38,20 +38,27 @@ If the Security Groups do not allow inbound traffic on port `9098`, then make su
 
 ## Required CDK Context Variables
 
-You can set these `context` variables via `cdk.json`, under `zilla-plus` object.
+You can set these `context` variables via `cdk.context.json`, under `zilla-plus` object.
+
+First, copy the example to `cdk.context.json`.
+```bash
+cp cdk.context.example.json cdk.context.json
+```
+
+Then, further modify `cdk.context.json` based on the context variable descriptions below.
 
 ### `vpcId`: VPC ID
 
-The VPC ID where the MSK Serverless cluster is . 
+The VPC ID where the MSK Serverless cluster was created.
 
 ```bash
 aws ec2 describe-subnets \
   --subnet-ids $(aws kafka list-clusters-v2 \
       --cluster-type SERVERLESS \
-      --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
+      --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[0]" \
       --output text) \
   --query "Subnets[0].VpcId" \
-  --output text
+  --output json
 ```
 
 ### `msk` related variables
@@ -71,11 +78,11 @@ To get the bootstrap servers of the MSK Serverless Cluster run:
 ```bash
 aws kafka get-bootstrap-brokers \
     --cluster-arn <msk-serverless-arn> \
-    --query '{"IAM Bootstrap Server": BootstrapBrokerStringSaslIam}' \
-    --output table
+    --query 'BootstrapBrokerStringSaslIam' \
+    --output json
 ```
 
-Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.json`, in the `zilla-plus` `msk` `servers` variable.
+Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `msk` `servers` variable.
 
 #### `subnetIds`: Subnets of your deployed MSK Serverless Cluster
 
@@ -83,10 +90,10 @@ Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.json`, in the `zilla-plus
 aws kafka list-clusters-v2 \
   --cluster-type SERVERLESS \
   --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
-  --output table
+  --output json
 ```
 
-Set the Subnet IDs for Zilla Plus via `cdk.json`, in the `zilla-plus` `msk` `subnetIds` variable.
+Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `msk` `subnetIds` variable.
 
 
 ### `private` Zilla Plus variables
@@ -105,7 +112,7 @@ Set the Subnet IDs for Zilla Plus via `cdk.json`, in the `zilla-plus` `msk` `sub
 This variable defines the private wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
 It should match the wildcard DNS of the private TLS certificate.
 
-Set the wildcard DNS pattern for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `wildcardDNS` variable.
+Set the wildcard DNS pattern for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `wildcardDNS` variable.
 
 
 #### `certificate`: Zilla Plus TLS Certificate ARN
@@ -121,7 +128,7 @@ aws acm list-certificates \
   --output table
 ```
 
-Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `certificate` variable.
+Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
@@ -134,7 +141,7 @@ aws secretsmanager list-secrets \
   --output table
 ```
 
-Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `certificate` variable.
+Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `certificate` variable.
 
 #### `port`: Zilla Plus Port
 
@@ -142,7 +149,7 @@ Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.json`, in
 
 This variable defines the port number to be used by Kafka clients.
 
-Optionally override the default port for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `port` variable.
+Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `port` variable.
 
 
 ### `capacity`: Zilla Plus EC2 Instances
@@ -151,7 +158,7 @@ Optionally override the default port for Zilla Plus via `cdk.json`, in the `zill
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default initial number of instances for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `capacity` variable.
+Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `capacity` variable.
 
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
@@ -162,7 +169,7 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default instance type for Zilla Plus via `cdk.json`, in the `zilla-plus` `private` `instanceType` variable.
+Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `instanceType` variable.
 
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
@@ -179,7 +186,7 @@ aws iam list-roles \
   --output table
 ```
 
-Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.json`, in the `zilla-plus` `roleName` variable.
+Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `roleName` variable.
 
 
 ### `securityGroups`: Zilla Plus EC2 Instance Security Groups
@@ -196,7 +203,7 @@ aws ec2 describe-security-groups \
   --output table
 ```
 
-Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.json`, in the `zilla-plus` `securityGroups` variable.
+Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `securityGroups` variable.
 
 
 ### `cloudwatch` Zilla Plus variables
@@ -220,7 +227,7 @@ Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.jso
 
 By default CloudWatch metrics and logging is enabled.
 
-Optionally disable CloudWatch logging and metrics for Zilla Plus via `cdk.json`, by setting the `zilla-plus` `cloudwatch` `disabled` variable to `true`.
+Optionally disable CloudWatch logging and metrics for Zilla Plus via `cdk.context.json`, by setting the `zilla-plus` `cloudwatch` `disabled` variable to `true`.
 
 You can create or use existing log groups and metric namespaces in CloudWatch.
 
@@ -238,7 +245,7 @@ aws logs describe-log-groups \
 
 This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
 
-Optionally override the CloudWatch Logs Group for Zilla Plus via `cdk.json`, in the `zilla-plus` `cloudwatch` `logs` `group` variable.
+Optionally override the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `logs` `group` variable.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -250,7 +257,7 @@ aws cloudwatch list-metrics \
 | uniq 
 ```
 
-Optionally override the CloudWatch Metrics Namespace for Zilla Plus via `cdk.json`, in the `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
+Optionally override the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
 
 
 ### Enable SSH Access
@@ -267,7 +274,7 @@ aws ec2 describe-key-pairs \
   --output table
 ```
 
-Optionally specify the KeyPair name for Zilla Plus via `cdk.json`, in the `zilla-plus` `sshKey` variable.
+Optionally specify the KeyPair name for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `sshKey` variable.
 
 ## Deploy stack using CDK
 
