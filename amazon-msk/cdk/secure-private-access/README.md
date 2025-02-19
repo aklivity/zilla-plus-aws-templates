@@ -4,10 +4,10 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## Prerequisites
 
-1. Subscribe to [Zilla Plus for Amazon MSK](https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44).
-1. [Install Node.js](https://nodejs.org/en/download/package-manager).
-1. [Install AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html).
-1. [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+1. Subscribe to [Zilla Plus for Amazon MSK].
+1. [Install Node.js].
+1. [Install AWS CDK].
+1. [Install AWS CLI].
 1. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 1. Set your aws region: `aws configure set region us-east-1`
 1. Verify your region and credentials: `aws configure list`
@@ -393,17 +393,15 @@ aws route53 change-resource-record-sets \
 
 ### Create IAM Role for MSK Serverless
 
-Follow the AWS guide to create an IAM Policy and Role that grants access to certain Kafka operations.
-https://docs.aws.amazon.com/msk/latest/developerguide/create-iam-role.html
+Follow the AWS guide to [Create an IAM role for topics on MSK Serverless cluster] to grants access to certain Kafka operations.
 
 You can use the created role in the next step for client machine that assumes this role and uses it.
 
 ### Launch Client EC2 Instance in different VPC and Install the Kafka Client
 
-Follow the AWS guide to launch an EC2 instance to be able to connect to MSK Serverless.
-https://docs.aws.amazon.com/msk/latest/developerguide/create-serverless-cluster-client.html
+Follow the AWS guide to [Create a client machine to access MSK Serverless cluster] to be able to connect from your Kafka client running in a different VPC.
 
-This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". Now that you deployed Zilla Plus, you can provide the client VPC where you configured the VPC Endpoint. 
+This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". Now that you deployed Zilla Plus, you can provide the client VPC where you configured the VPC Endpoint instead. 
 
 Make sure to download one of the latest versions of `aws-msk-iam-auth` jar file if you want to use `OAUTHBEARER` authentication mechanism, as that's not included in `v1.1.1`
 
@@ -415,7 +413,7 @@ wget https://github.com/aws/aws-msk-iam-auth/releases/download/v2.2.0/aws-msk-ia
 
 ### Configure the Kafka Client
 
-With the Kaka client now installed we are ready to configure it and point it at the custom domain configured for Zilla Plus.
+With the Kafka client now installed, we are ready to configure IAM authorization.
 
 You can either choose to use `AWS_MSK_IAM` or `OAUTHBEARER`.
 
@@ -440,7 +438,7 @@ sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLo
 
 ### Test the Kafka Client
 
-This verifies connectivity to your MSK Serverless cluster via Zilla Plus from a different VPC.
+This verifies custom domain connectivity to your MSK Serverless cluster via Zilla Plus, from a different VPC.
 
 We can now verify that the Kafka client can successfully communicate with your MSK Serverless cluster from an EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
 
@@ -477,3 +475,9 @@ export AWS_REGION=<target region>
 ```
 
 [ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html
+[Zilla Plus for Amazon MSK]: https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44
+[Install Node.js]: https://nodejs.org/en/download/package-manager
+[Install AWS CDK]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
+[Install AWS CLI]: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html
+[Create an IAM role for topics on MSK Serverless cluster]: https://docs.aws.amazon.com/msk/latest/developerguide/create-iam-role.html
+[Create a client machine to access MSK Serverless cluster]: https://docs.aws.amazon.com/msk/latest/developerguide/create-serverless-cluster-client.html
