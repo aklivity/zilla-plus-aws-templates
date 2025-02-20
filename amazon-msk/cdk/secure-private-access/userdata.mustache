@@ -1,0 +1,45 @@
+##!/bin/bash -xe
+cat <<EOF > /etc/zilla/zilla.yaml
+{{{yaml.zilla}}}
+EOF
+
+{{#yaml.acm}}
+cat <<EOF > /etc/nitro_enclaves/acm.yaml
+{{{yaml.acm}}}
+EOF
+{{/yaml.acm}}
+
+chown ec2-user:ec2-user /etc/zilla/zilla.yaml
+
+mkdir /etc/cfn
+cat <<EOF > /etc/cfn/cfn-hup.conf
+[main]
+stack={{{stack}}}
+region={{{region}}}
+EOF
+
+chown root:root /etc/cfn/cfn-hup.conf
+chmod 0400 /etc/cfn/cfn-hup.conf
+
+mkdir /etc/cfn/hooks.d
+cat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf
+[cfn-auto-reloader-hook]
+triggers=post.update
+path=Resources.ZillaPlusLaunchTemplate.MetaData.AWS::CloudFormation::Init
+action=/opt/aws/bin/cfn-init -v --stack {{{stack}}} --resource ZillaPlusLaunchTemplate --region {{{region}}}
+runas=root
+EOF
+
+chown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf
+chmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+systemctl enable cfn-hup
+systemctl start cfn-hup
+systemctl enable amazon-ssm-agent
+systemctl start amazon-ssm-agent
+{{#yaml.acm}}
+systemctl enable nitro-enclaves-acm.service
+systemctl start nitro-enclaves-acm.service
+{{/yaml.acm}}
+systemctl enable zilla-plus
+systemctl start zilla-plus

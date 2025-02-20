@@ -120,11 +120,6 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         ec2.Port.tcp(context.private.port),
         'Allow inbound traffic on Kafka IAM port');
 
-      securityGroup.addEgressRule(
-        ec2.Peer.anyIpv4(),
-        ec2.Port.allTcp(),
-        'Allow all outbound TCP traffic');
-
       securityGroups = [securityGroup];
       context.securityGroups = [securityGroup.securityGroupId];
     }
@@ -246,32 +241,6 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       zillaPlusRoleName = iamInstanceProfile.ref;
     }
 
-    let acmYaml = '';
-    let enclavesAcmServiceStart = '';
-
-    if (nitroEnclavesEnabled) {
-      acmYaml = `
-enclave:
-  cpu_count: 2
-  memory_mib: 256
-
-options:
-  sync_interval_secs: 600
-
-tokens:
-  - label: acm-token-example
-    source:
-      Acm:
-        certificate_arn: '${context.private.certificate}'
-    refresh_interval_secs: 43200
-    pin: 1234
-`;
-      enclavesAcmServiceStart = `
-systemctl enable nitro-enclaves-acm.service
-systemctl start nitro-enclaves-acm.service
-`;
-    }
-
     if (context.cloudwatch) {
       zillaYamlData.cloudwatch = {};
 
@@ -359,60 +328,36 @@ systemctl start nitro-enclaves-acm.service
       wildcardDNS: mskWildcardDNS
     };
 
+    let userdataData = {
+      stack: `${id}`,
+      region: `${this.region}`,
+      yaml: {}
+    }
+
+    if (nitroEnclavesEnabled) {
+      const acmYamlData = {
+        private: context.private
+      }
+      const acmYamlMustache: string = fs.readFileSync('acm.yaml.mustache', 'utf8');
+      const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
+
+      userdataData.yaml = {
+        ...userdataData.yaml,
+        acm: acmYaml
+      }
+    }
+
     const zillaYamlMustache: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const zillaYaml: string = Mustache.render(zillaYamlMustache, zillaYamlData);
 
-    const cfnHupConfContent = `
-[main]
-stack=${id}
-region=${this.region}
-    `;
+    userdataData.yaml = {
+      ...userdataData.yaml,
+      zilla: zillaYaml
+    }
 
-    const cfnAutoReloaderConfContent = `
-[cfn-auto-reloader-hook]
-triggers=post.update
-path=Resources.ZillaPlusLaunchTemplate.MetaData.AWS::CloudFormation::Init
-action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${this.region}
-runas=root
-    `;
+    const userdataMustache: string = fs.readFileSync('userdata.mustache', 'utf8');
+    const userdata: string = Mustache.render(userdataMustache, userdataData);
 
-    const userData = `#!/bin/bash -xe
-cat <<EOF > /etc/zilla/zilla.yaml
-${zillaYaml}
-EOF
-
-cat <<EOF > /etc/nitro_enclaves/acm.yaml
-${acmYaml}
-EOF
-
-chown ec2-user:ec2-user /etc/zilla/zilla.yaml
-
-mkdir /etc/cfn
-cat <<EOF > /etc/cfn/cfn-hup.conf
-${cfnHupConfContent}
-EOF
-
-chown root:root /etc/cfn/cfn-hup.conf
-chmod 0400 /etc/cfn/cfn-hup.conf
-
-mkdir /etc/cfn/hooks.d
-cat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf
-${cfnAutoReloaderConfContent}
-EOF
-
-chown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf
-chmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf
-
-systemctl enable cfn-hup
-systemctl start cfn-hup
-systemctl enable amazon-ssm-agent
-systemctl start amazon-ssm-agent
-${enclavesAcmServiceStart}
-systemctl enable zilla-plus
-systemctl start zilla-plus
-
-    `;
-    
     const launchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
       launchTemplateData: {
         imageId: imageId,
@@ -430,7 +375,7 @@ systemctl start zilla-plus
           enabled: nitroEnclavesEnabled,
         },
         keyName: context.sshKey,
-        userData: cdk.Fn.base64(userData),
+        userData: cdk.Fn.base64(userdata),
         tagSpecifications: [
           {
             resourceType: 'instance',
@@ -442,7 +387,7 @@ systemctl start zilla-plus
             ]
           }
         ]
-  }
+      }
     });
 
     new autoscaling.CfnAutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
