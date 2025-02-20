@@ -14,9 +14,14 @@
     },
     "cloudwatch":
     {
-      "disabled": false,
-      "logGroupName": "zilla-plus-spa-loggroup",
-      "metricsNamespace": "zilla-plus-spa-metrics"
+      "logs":
+      {
+        "group": "<your cloudwatch log group name>"
+      },
+      "metrics":
+      {
+        "namespace": "<your cloudwatch metrics namespace>"
+      }
     }
   }
 }

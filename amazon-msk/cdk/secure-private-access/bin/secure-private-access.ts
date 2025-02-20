@@ -4,7 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { ZillaPlusSecurePrivateAccessStack } from '../lib/secure-private-access-stack';
 
 const app = new cdk.App();
-new ZillaPlusSecurePrivateAccessStack(app, 'SecurePrivateAccessStack', {
+new ZillaPlusSecurePrivateAccessStack(app, 'SecurePrivateAccess', {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION
