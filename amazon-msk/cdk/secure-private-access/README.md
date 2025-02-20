@@ -207,7 +207,6 @@ Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.con
 ```json
     "cloudwatch":
     {
-        "disabled": false,
         "logs":
         {
             "group": "<your cloudwatch log group name>"
