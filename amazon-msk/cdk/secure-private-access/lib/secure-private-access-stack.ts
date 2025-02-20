@@ -313,7 +313,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
 
     const internalDomain = mskWildcardDNS.split("*-")[1];
     const internalHost = `b#.${internalDomain}`;
-    const defaultInternalHost = `boot-.${internalDomain}`;
+    const defaultInternalHost = `boot-${internalDomain}`;
 
     zillaYamlData.private = {
       ...zillaYamlData.private,
