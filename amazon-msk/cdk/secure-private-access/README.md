@@ -20,9 +20,10 @@ This guide will help you gather the necessary AWS values required to configure a
    secret_key     ****************XXXX              env
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
+
 1. Verify that your MSK Serverless cluster Security Group allows inbound traffic on port `9098`.
 
-#### List the inbound rules for Security Group
+### List the inbound rules for Security Group
 
 ```bash
 aws ec2 describe-security-groups \
@@ -41,6 +42,7 @@ If the Security Groups do not allow inbound traffic on port `9098`, then make su
 You can set these `context` variables via `cdk.context.json`, under `zilla-plus` object.
 
 First, copy the example to `cdk.context.json`.
+
 ```bash
 cp cdk.context.example.json cdk.context.json
 ```
@@ -95,7 +97,6 @@ aws kafka list-clusters-v2 \
 
 Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `msk` `subnetIds` variable.
 
-
 ### `private` Zilla Plus variables
 
 ```json
@@ -114,10 +115,9 @@ It should match the wildcard DNS of the private TLS certificate.
 
 Set the wildcard DNS pattern for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `wildcardDNS` variable.
 
-
 #### `certificate`: Zilla Plus TLS Certificate ARN
 
-You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
+You need the ARN of either the Certificate Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
 
 List all certificates in Certificate Manager:
 
@@ -131,7 +131,6 @@ aws acm list-certificates \
 Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
-
 
 List all secrets in Secrets Manager:
 
@@ -151,7 +150,6 @@ This variable defines the port number to be used by Kafka clients.
 
 Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `port` variable.
 
-
 ### `capacity`: Zilla Plus EC2 Instances
 
 > Default: `2`
@@ -159,7 +157,6 @@ Optionally override the default port for Zilla Plus via `cdk.context.json`, in t
 This variable defines the initial number of Zilla Plus instances.
 
 Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `capacity` variable.
-
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -170,7 +167,6 @@ Optionally override the default initial number of instances for Zilla Plus via `
 This variable defines the initial number of Zilla Plus instances.
 
 Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `private` `instanceType` variable.
-
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
@@ -188,7 +184,6 @@ aws iam list-roles \
 
 Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `roleName` variable.
 
-
 ### `securityGroups`: Zilla Plus EC2 Instance Security Groups
 
 > Default: (generated)
@@ -205,10 +200,9 @@ aws ec2 describe-security-groups \
 
 Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `securityGroups` variable.
 
-
 ### `cloudwatch` Zilla Plus variables
 
-> Default: (generated)
+> Default: (disabled)
 
 ```json
     "cloudwatch":
@@ -225,15 +219,8 @@ Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.con
     }
 ```
 
-By default CloudWatch metrics and logging is enabled.
-
-Optionally disable CloudWatch logging and metrics for Zilla Plus via `cdk.context.json`, by setting the `zilla-plus` `cloudwatch` `disabled` variable to `true`.
-
-You can create or use existing log groups and metric namespaces in CloudWatch.
-
-By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
-
-If you prefer to define your own, follow these steps.
+CloudWatch logging is enabled when you specify a log group name.
+CloudWatch metrics is enabled when you specify a metrics namespace.
 
 #### List All CloudWatch Log Groups
 
@@ -245,7 +232,7 @@ aws logs describe-log-groups \
 
 This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
 
-Optionally override the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `logs` `group` variable.
+Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `logs` `group` variable.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -257,8 +244,7 @@ aws cloudwatch list-metrics \
 | uniq
 ```
 
-Optionally override the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
-
+Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
 
 ### Enable SSH Access
 
@@ -266,7 +252,7 @@ Optionally override the CloudWatch Metrics Namespace for Zilla Plus via `cdk.con
 
 To enable SSH access to the instances you will need the name of an existing EC2 KeyPair.
 
-List all EC2 KeyPairs:
+#### List all EC2 KeyPairs
 
 ```bash
 aws ec2 describe-key-pairs \
@@ -274,7 +260,7 @@ aws ec2 describe-key-pairs \
   --output table
 ```
 
-Optionally specify the KeyPair name for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `sshKey` variable.
+Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `sshKey` variable.
 
 ## Deploy stack using CDK
 
@@ -305,14 +291,15 @@ cdk bootstrap
 ```
 
 ### Deploy the stack
-Deploy your resources to AWS:
 
+Deploy your resources to AWS:
 
 ```bash
 cdk deploy
 ```
 
 Sample output:
+
 ```bash
 Outputs:
 SecurePrivateAccess.VpcEndpointServiceId = vpce-svc-1234567
@@ -349,11 +336,12 @@ aws ec2 accept-vpc-endpoint-connections \
 
 ### Add Route 53 Private Hosted Zone
 
-For your client machine to be able to resolve the custom wilcard DNS configured for Zilla Plus, you need to add a Route 53 Private Hosted Zone, with an `ALIAS` record that resolves the wildcard custom domain to the client VPC Endpoint DNS name.
+For your client machine to be able to resolve the custom wildcard DNS configured for Zilla Plus, you need to add a Route 53 Private Hosted Zone, with an `ALIAS` record that resolves the wildcard custom domain to the client VPC Endpoint DNS name.
 
 First, create an empty Private Hosted Zone.
 
 Note: Change the `Name` of the hosted zone according to your custom domain.
+
 ```bash
 aws route53 create-hosted-zone \
   --name example.aklivity.io \
@@ -361,18 +349,21 @@ aws route53 create-hosted-zone \
   --caller-reference <unique caller id> \
   --hosted-zone-config PrivateZone=true
 ```
+
 The `create-hosted-zone` response includes the newly created custom domain `HostedZone` `Id` in `Z##########` format, which is needed to create DNS records within the hosted zone.
 
 Lookup the `VPC Endpoint` `HostedZoneId` and `DnsName` so we can create the `ALIAS` record.
-```
+
+```bash
 aws ec2 describe-vpc-endpoints \
   --vpc-endpoint-ids <Your Client VPC Endpoint ID> \
   --query "VpcEndpoints[*].[VpcEndpointId,DnsEntries]"
 ```
 
 Create the wildcard custom domain DNS record in the Private Hosted Zone.
- - use the custom domain `HostedZone` `Id` from `create-hosted-zone` above
- - use the `VPC Endpoint` first entry `DnsName` and `HostedZoneId` from `describe-vpc-endpoints` above
+
+- use the custom domain `HostedZone` `Id` from `create-hosted-zone` above
+- use the `VPC Endpoint` first entry `DnsName` and `HostedZoneId` from `describe-vpc-endpoints` above
 
 Note: Change the `Name` of the record according to your custom domain.
 
@@ -397,7 +388,6 @@ aws route53 change-resource-record-sets \
   }'
 ```
 
-
 ### Create IAM Role for MSK Serverless
 
 Follow the AWS guide to [Create an IAM role for topics on MSK Serverless cluster] to grants access to certain Kafka operations.
@@ -413,10 +403,10 @@ This documentation mentions that "under VPC, enter the ID of the virtual private
 Make sure to download one of the latest versions of `aws-msk-iam-auth` jar file if you want to use `OAUTHBEARER` authentication mechanism, as that's not included in `v1.1.1`
 
 For example:
+
 ```bash
 wget https://github.com/aws/aws-msk-iam-auth/releases/download/v2.2.0/aws-msk-iam-auth-2.2.0-all.jar
 ```
-
 
 ### Configure the Kafka Client
 
@@ -424,7 +414,7 @@ With the Kafka client now installed, we are ready to configure IAM authorization
 
 You can either choose to use `AWS_MSK_IAM` or `OAUTHBEARER`.
 
-##### client.properties for `AWS_MSK_IAM`
+#### client.properties for `AWS_MSK_IAM`
 
 ```text
 security.protocol=SASL_SSL
@@ -433,7 +423,7 @@ sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;
 sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbackHandler
 ```
 
-##### client.properties for `OAUTHBEARER`
+#### client.properties for `OAUTHBEARER`
 
 ```text
 security.protocol=SASL_SSL
@@ -477,6 +467,7 @@ Now you can produce and subscribe to the `zilla-plus-test` topic in your MSK Ser
 Although same region connectivity is naturally considered best practice, Zilla Plus does not prevent you from reaching an MSK Serverless cluster across regions if needed. First add the desired client region to the `Supported regions` section of the `VPC Endpoint Service` created during deployment of this Zilla Plus stack.
 
 Then on the client EC2 instance in a different region, follow the `Connect to your MSK Serverless from a different VPC` steps above to create the cross-region `VPC Endpoint` and set the target region so the AWS IAM login module used by your Kafka client can authenticate properly to the MSK Serverless cluster via Zilla Plus.
+
 ```bash
 export AWS_REGION=<target region>
 ```
