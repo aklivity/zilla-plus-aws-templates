@@ -17,26 +17,6 @@
     ]
   },
   "context": {
-    "zilla-plus":
-    {
-      "vpcId": "<your VPC ID>",
-      "msk":
-      {
-        "servers": "<Bootstrap Servers of your MSK Serverless>",
-        "subnetIds": ["<MSK serverless subnetId1>", "<MSK serverless subnetId2>"]
-      },
-      "private":
-      {
-        "wildcardDNS": "<your wildcard dns>",
-        "certificate": "<your tls certificate key ARN>"
-      },
-      "cloudwatch":
-      {
-        "disabled": false,
-        "logGroupName": "zilla-plus-spa-loggroup",
-        "metricsNamespace": "zilla-plus-spa-metrics"
-      }
-    },
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

@@ -5,7 +5,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
 import Mustache = require("mustache");
 import fs =  require("fs");
-
+import { LogGroup, LogStream } from 'aws-cdk-lib/aws-logs';
 
 interface TemplateData {
   name: string;
@@ -22,13 +22,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const mandatoryVariables = [
-      'vpcId',
-      'msk',
-      'private'
-    ];
-    
-    function validateContextKeys(node:  | object, keys: string[]): void {
+    function validateRequiredKeys(node: | object, keys: string[]): void {
       const missingKeys = [];
       if (node instanceof Node) {
         missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
@@ -42,76 +36,57 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       }
     }
     
-    const zillaPlusContext = this.node.tryGetContext('zilla-plus');
-    validateContextKeys(zillaPlusContext, mandatoryVariables);
+    // lookup context
+    const context = this.node.tryGetContext('zilla-plus');
 
-    const vpcId = zillaPlusContext.vpcId;
-    const msk = zillaPlusContext.msk;
-    const mandatoryMSKVariables = [
-      'servers',
-      'subnetIds'
-    ];
-    validateContextKeys(msk, mandatoryMSKVariables);
-    const subnetIds = msk.subnetIds;
+    // validate context
+    validateRequiredKeys(context, [ 'vpcId', 'msk', 'private' ]);
+    validateRequiredKeys(context.msk, [ 'servers', 'subnetIds' ]);
+    validateRequiredKeys(context.private, [ 'certificate', 'wildcardDNS' ]);
 
+    // detect dependencies
+    const nitroEnclavesEnabled: boolean = context.private.certificate.startsWith("arn:aws:acm");
+    const secretsmanagerEnabled: boolean = context.private.certificate.startsWith("arn:aws:secretsmanager");
+    const cloudwatchEnabled: boolean = context?.cloudwatch?.logs?.group || context.cloudwatch?.metrics?.namespace;
 
-    const privateVar = zillaPlusContext.private;
-    const mandatoryPrivateVariables = [
-      'certificate',
-      'wildcardDNS'
-    ];
-    validateContextKeys(privateVar, mandatoryPrivateVariables);
-    const privateTlsCertificateKey = privateVar.certificate;
-    const privateWildcardDNS = privateVar.wildcardDNS;
-    const privatePort = privateVar.port ?? 9098;
+    // apply context defaults
+    context.private.port ??= 9098;
+    context.capacity ??= 2;
+    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
 
-    const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: vpcId });
-    const subnets = vpc.selectSubnets();
-    if (subnets.isPendingLookup) {
-      // return before using the vpc, the cdk will rerun immediately after the lookup
-      return;
-    }
+    // zilla.yaml template data
+    const zillaYamlData: TemplateData = {
+      name: 'private',
+      useAcm: nitroEnclavesEnabled,
+      private: {}
+    };
 
-    let zillaPlusSecurityGroups = zillaPlusContext.securityGroups;
-    let zillaPlusSG;
-    if (zillaPlusSecurityGroups) {
-      zillaPlusSG = zillaPlusSecurityGroups.map((sgId: string, index: any) =>
-        ec2.SecurityGroup.fromSecurityGroupId(this, `SecurityGroup${index}`, sgId)
-      );
-      zillaPlusSecurityGroups = zillaPlusSecurityGroups.split(',');
-    } else {
-      zillaPlusSG = new ec2.SecurityGroup(this, `ZillaPlusSecurityGroup-${id}`, {
-        vpc: vpc,
-        description: 'Security group for Zilla Plus',
-        securityGroupName: `zilla-plus-security-group-${id}`,
-      });
-
-      zillaPlusSG.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(privatePort), 'Allow inbound traffic on Kafka IAM port');
-      zillaPlusSG.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp(), 'Allow all outbound TCP traffic');
-
-      zillaPlusSecurityGroups = [zillaPlusSG.securityGroupId];
-    }
-
-    const privateTlsCertificateViaAcm: boolean = privateTlsCertificateKey.startsWith("arn:aws:acm");
-
-    let services: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
+    let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
       "ssm": ec2.InterfaceVpcEndpointAwsService.SSM,
-      "secretsmanager": ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
-      "monitoring": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING,
-      "cloudwatch": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
       "cloudformation": ec2.InterfaceVpcEndpointAwsService.CLOUDFORMATION,
       "ssm_messages": ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
       "ec2_messages": ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
     };
     
-    if (privateTlsCertificateViaAcm) {
-      vpc.addGatewayEndpoint("S3GatewayEndpoint", {
-        service: ec2.GatewayVpcEndpointAwsService.S3,
-        subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(subnetIds)] }],
-      });
+    if (secretsmanagerEnabled) {
+      endpoints = {
+        ...endpoints,
+        "secretsmanager": ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+      };
+    }
 
-      services = {
-        ...services,
+    if (cloudwatchEnabled)
+    {
+      endpoints = {
+        ...endpoints,
+        "monitoring": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING,
+        "cloudwatch": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
+      };
+    }
+
+    if (nitroEnclavesEnabled) {
+      endpoints = {
+        ...endpoints,
         "acm-pca": new ec2.InterfaceVpcEndpointAwsService("acm-pca"),
         "kms": ec2.InterfaceVpcEndpointAwsService.KMS,
         "s3": ec2.InterfaceVpcEndpointAwsService.S3,
@@ -119,40 +94,62 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    for (const serviceKey in services) {
-      if (services.hasOwnProperty(serviceKey)) {
-        const service = services[serviceKey as keyof typeof services];
-    
-        vpc.addInterfaceEndpoint(`Endpoint-${serviceKey}`, {
+    const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
+    const subnets = vpc.selectSubnets();
+    if (subnets.isPendingLookup) {
+      // return before using the vpc, the cdk will rerun immediately after the lookup
+      return;
+    }
+
+    let securityGroups = [];
+
+    if (context.securityGroups) {
+      securityGroups = context.securityGroups.map((sgId: string, index: any) =>
+        ec2.SecurityGroup.fromLookupById(this, `SecurityGroup-${sgId}`, sgId)
+      )
+    }
+    else {
+      const securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
+        vpc: vpc,
+        description: `Zilla Plus Security Group`,
+        securityGroupName: `zilla-plus-${id}`,
+      });
+
+      securityGroup.addIngressRule(
+        ec2.Peer.anyIpv4(),
+        ec2.Port.tcp(context.private.port),
+        'Allow inbound traffic on Kafka IAM port');
+
+      securityGroups = [securityGroup];
+      context.securityGroups = [securityGroup.securityGroupId];
+    }
+
+    for (const serviceName in endpoints) {
+      if (endpoints.hasOwnProperty(serviceName)) {
+        if (serviceName == "s3") {
+          vpc.addGatewayEndpoint("Endpoint-s3-gateway", {
+            service: ec2.GatewayVpcEndpointAwsService.S3,
+            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] }],
+          });
+        }
+
+        const service = endpoints[serviceName as keyof typeof endpoints];
+        vpc.addInterfaceEndpoint(`Endpoint-${serviceName}`, {
           service: service,
-          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(subnetIds)] },
-          securityGroups: [zillaPlusSG]
+          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] },
+          securityGroups: securityGroups
         });
       }
     }
 
-    const mskBootstrapServers = msk.servers;
+    const [mskServer, mskPort] = context.msk.servers.split(',')[0].split(':');
+    const mskWildcardDNS = `*-${mskServer.split('-').slice(1).join("-")}`;
 
-    const domainParts = mskBootstrapServers.split(',')[0].split(':');
-    const serverAddress = domainParts[0];
-    const mskPort = domainParts[1];
+    let zillaPlusRoleName = context.roleName;
 
-    const addressParts = serverAddress.split('-');
-    const mskBootstrapCommonPart = addressParts.slice(1).join("-");
-    const mskWildcardDNS = `*-${mskBootstrapCommonPart}`;
-
-
-    const data: TemplateData = {
-      name: 'private',
-      useAcm: privateTlsCertificateViaAcm,
-      private: {}
-    };
-
-    let zillaPlusRole = zillaPlusContext.roleName;
-
-    if (!zillaPlusRole) {
-      const iamRole = new iam.Role(this, `ZillaPlusRole-${id}`, {
-        roleName: `zilla_plus_role-${id}`,
+    if (!zillaPlusRoleName) {
+      const iamRole = new iam.Role(this, `ZillaPlus-Role`, {
+        roleName: `zilla-plus-${id}`,
         assumedBy: new iam.CompositePrincipal(
           new iam.ServicePrincipal('ec2.amazonaws.com'),
           new iam.ServicePrincipal('cloudformation.amazonaws.com')
@@ -185,8 +182,8 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         },
       });
 
-      const iamInstanceProfile = new iam.CfnInstanceProfile(this, `ZillaPlusInstanceProfile-${id}`, {
-        instanceProfileName: `zilla_plus_role-${id}`,
+      const iamInstanceProfile = new iam.CfnInstanceProfile(this, `ZillaPlus-InstanceProfile`, {
+        instanceProfileName: `zilla-plus-${id}`,
         roles: [iamRole.roleName],
       });
 
@@ -207,9 +204,9 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         ],
       });
 
-      if (privateTlsCertificateViaAcm) {
-        const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlusEnclaveIamRoleAssociation-${id}`, {
-          certificateArn: privateTlsCertificateKey,
+      if (nitroEnclavesEnabled) {
+        const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlus-EnclaveCertificateIamRoleAssociation`, {
+          certificateArn: context.private.certificate,
           roleArn: iamRole.roleArn,
         });
 
@@ -235,78 +232,44 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         );
       }
 
-      new iam.CfnPolicy(this, `ZillaPlusRolePolicy-${id}`, {
-        policyName: `ZillaPlusRolePolicy-${id}`,
+      new iam.CfnPolicy(this, `ZillaPlus-Policy`, {
+        policyName: `ZillaPlus-${id}`,
         roles: [iamRole.roleName],
         policyDocument: iamPolicy.toJSON(),
       });
 
-      zillaPlusRole = iamInstanceProfile.ref;
+      zillaPlusRoleName = iamInstanceProfile.ref;
     }
 
-    const zillaPlusCapacity = zillaPlusContext.capacity ?? 2;
+    if (context.cloudwatch) {
+      zillaYamlData.cloudwatch = {};
 
-    let keyName = zillaPlusContext.sshKey;
-    let acmYamlContent = '';
-    let enclavesAcmServiceStart = '';
+      const logGroup = context.cloudwatch?.logs?.group;
+      if (logGroup) {
+        const group = LogGroup.fromLogGroupName(this, `LogGroup-$logGroup`, logGroup);
+        const stream = context.cloudwatch?.logs?.stream ?? 'events';
 
-    if (privateTlsCertificateViaAcm) {
-      acmYamlContent = `
-enclave:
-  cpu_count: 2
-  memory_mib: 256
-
-options:
-  sync_interval_secs: 600
-
-tokens:
-  - label: acm-token-example
-    source:
-      Acm:
-        certificate_arn: '${privateTlsCertificateKey}'
-    refresh_interval_secs: 43200
-    pin: 1234
-`;
-      enclavesAcmServiceStart = `
-systemctl enable nitro-enclaves-acm.service
-systemctl start nitro-enclaves-acm.service
-`;
+        zillaYamlData.cloudwatch = {
+          ...zillaYamlData.cloudwatch,
+          logs: {
+            group: group.logGroupName,
+            stream: stream
+          }
+        }
+      }
+  
+      const metricsNamespace = context.cloudwatch?.metrics?.namespace;
+      if (metricsNamespace) {
+        zillaYamlData.cloudwatch = {
+          ...zillaYamlData.cloudwatch,
+          metrics: {
+            namespace: metricsNamespace,
+          },
+        };
+      }
     }
 
-    const cloudwatch = zillaPlusContext.cloudwatch;
-    const cloudwatchDisabled = cloudwatch?.disabled ?? false;
-
-    if (!cloudwatchDisabled) {
-      const defaultLogGroupName = `${id}-group`;
-      const defaultMetricNamespace = `${id}-namespace`;
-
-      const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
-      const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
-
-      const cloudWatchLogGroup = new logs.LogGroup(this, `LogGroup-${id}`, {
-        logGroupName: logGroupName,
-        retention: logs.RetentionDays.ONE_MONTH,
-      });
-
-      new logs.LogStream(this, `LogStream-${id}`, {
-        logGroup: cloudWatchLogGroup,
-        logStreamName: 'events',
-      });
-
-      data.cloudwatch = {
-        logs: {
-          group: cloudWatchLogGroup.logGroupName,
-        },
-        metrics: {
-          namespace: metricNamespace,
-        },
-      };
-    }
-
-    const defaultInstanceType = privateTlsCertificateViaAcm ? 'c6i.xlarge' : 't3.small';
-    const instanceType = zillaPlusContext.instanceType ?? defaultInstanceType;
-
-    let imageId =  zillaPlusContext.ami;
+    let imageId =  context.ami;
     if (!imageId) {
       const ami = ec2.MachineImage.lookup({
         name: 'Aklivity Zilla Plus *',
@@ -318,143 +281,128 @@ systemctl start nitro-enclaves-acm.service
       imageId = ami.getImage(this).imageId;
     }
 
-    const nlb = new elbv2.CfnLoadBalancer(this, `NetworkLoadBalancer-${id}`, {
-      name: `nlb-${id}`,
+    const nlb = new elbv2.CfnLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
+      name: `zilla-plus-${id}`,
       scheme: 'internal',
-      subnets: subnetIds,
+      subnets: context.msk.subnetIds,
       type: 'network',
       ipAddressType: 'ipv4',
     });
 
-    const nlbTargetGroup = new elbv2.CfnTargetGroup(this, `NLBTargetGroup-${id}`, {
-      name: `nlb-tg-${id}`,
-      port: privatePort,
+    const targetGroup = new elbv2.CfnTargetGroup(this, `ZillaPlus-TargetGroup`, {
+      name: `zilla-plus-${id}`,
+      port: context.private.port,
       protocol: 'TCP',
-      vpcId: vpcId,
+      vpcId: context.vpcId,
     });
 
-    new elbv2.CfnListener(this, `NLBListener-${id}`, {
+    new elbv2.CfnListener(this, `ZillaPlus-Listener`, {
       loadBalancerArn: nlb.ref,
-      port: privatePort,
+      port: context.private.port,
       protocol: 'TCP',
       defaultActions: [
         {
           type: 'forward',
-          targetGroupArn: nlbTargetGroup.ref,
+          targetGroupArn: targetGroup.ref,
         },
       ],
     });
 
-    const externalHost = ["b-#.", privateWildcardDNS.split("*.")[1]].join("");
-    const internalHost = ["b#-", mskWildcardDNS.split("*-")[1]].join("");    
-    const defaultInternalHost = ["boot-", mskWildcardDNS.split("*-")[1]].join("");
+    const externalDomain = context.private.wildcardDNS.split("*.")[1];
+    const externalHost = `b-#.${externalDomain}`;
 
+    const internalDomain = mskWildcardDNS.split("*-")[1];
+    const internalHost = `b#.${internalDomain}`;
+    const defaultInternalHost = `boot-.${internalDomain}`;
 
-
-    data.private = {
-      ...data.private,
-      port: privatePort,
-      certificate: privateTlsCertificateKey,
-      wildcardDNS: privateWildcardDNS
+    zillaYamlData.private = {
+      ...zillaYamlData.private,
+      ...context.private
     }
-    data.externalHost = externalHost;
-    data.internalHost = internalHost;
-    data.defaultInternalHost = defaultInternalHost;
-    data.msk = {
-      ...data.msk,
+    zillaYamlData.externalHost = externalHost;
+    zillaYamlData.internalHost = internalHost;
+    zillaYamlData.defaultInternalHost = defaultInternalHost;
+    zillaYamlData.msk = {
+      ...zillaYamlData.msk,
       port: mskPort,
       wildcardDNS: mskWildcardDNS
     };
 
-    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
-    const renderedYaml: string = Mustache.render(yamlTemplate, data);
+    let userdataData = {
+      stack: `${id}`,
+      region: `${this.region}`,
+      yaml: {}
+    }
 
-    const cfnHupConfContent = `
-[main]
-stack=${id}
-region=${this.region}
-    `;
+    if (nitroEnclavesEnabled) {
+      const acmYamlData = {
+        private: context.private
+      }
+      const acmYamlMustache: string = fs.readFileSync('acm.yaml.mustache', 'utf8');
+      const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
 
-    const cfnAutoReloaderConfContent = `
-[cfn-auto-reloader-hook]
-triggers=post.update
-path=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init
-action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${this.region}
-runas=root
-    `;
+      userdataData.yaml = {
+        ...userdataData.yaml,
+        acm: acmYaml
+      }
+    }
 
-    const userData = `#!/bin/bash -xe
-cat <<EOF > /etc/zilla/zilla.yaml
-${renderedYaml}
-EOF
+    const zillaYamlMustache: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
+    const zillaYaml: string = Mustache.render(zillaYamlMustache, zillaYamlData);
 
-cat <<EOF > /etc/nitro_enclaves/acm.yaml
-${acmYamlContent}
-EOF
+    userdataData.yaml = {
+      ...userdataData.yaml,
+      zilla: zillaYaml
+    }
 
-chown ec2-user:ec2-user /etc/zilla/zilla.yaml
+    const userdataMustache: string = fs.readFileSync('userdata.mustache', 'utf8');
+    const userdata: string = Mustache.render(userdataMustache, userdataData);
 
-mkdir /etc/cfn
-cat <<EOF > /etc/cfn/cfn-hup.conf
-${cfnHupConfContent}
-EOF
-
-chown root:root /etc/cfn/cfn-hup.conf
-chmod 0400 /etc/cfn/cfn-hup.conf
-
-mkdir /etc/cfn/hooks.d
-cat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf
-${cfnAutoReloaderConfContent}
-EOF
-
-chown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf
-chmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf
-
-systemctl enable cfn-hup
-systemctl start cfn-hup
-systemctl enable amazon-ssm-agent
-systemctl start amazon-ssm-agent
-${enclavesAcmServiceStart}
-systemctl enable zilla-plus
-systemctl start zilla-plus
-
-    `;
-    
-    const zillaPlusLaunchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlusLaunchTemplate-${id}`, {
+    const launchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
       launchTemplateData: {
         imageId: imageId,
-        instanceType: instanceType,
+        instanceType: context.instanceType,
         networkInterfaces: [
           {
-            associatePublicIpAddress: true,
             deviceIndex: 0,
-            groups: zillaPlusSecurityGroups,
+            groups: context.securityGroups,
           },
         ],
         iamInstanceProfile: {
-          name: zillaPlusRole,
+          name: zillaPlusRoleName,
         },
         enclaveOptions: {
-          enabled: privateTlsCertificateViaAcm,
+          enabled: nitroEnclavesEnabled,
         },
-        keyName: keyName,
-        userData: cdk.Fn.base64(userData)
-      },
+        keyName: context.sshKey,
+        userData: cdk.Fn.base64(userdata),
+        tagSpecifications: [
+          {
+            resourceType: 'instance',
+            tags: [
+              {
+                key: 'Name',
+                value: `ZillaPlus-${id}`
+              }
+            ]
+          }
+        ]
+      }
     });
 
-    new autoscaling.CfnAutoScalingGroup(this, `ZillaPlusGroup-${id}`, {
-      vpcZoneIdentifier: subnetIds,
+    new autoscaling.CfnAutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
+      vpcZoneIdentifier: context.msk.subnetIds,
       launchTemplate: {
-        launchTemplateId: zillaPlusLaunchTemplate.ref,
+        launchTemplateId: launchTemplate.ref,
         version: '1'
       },
       minSize: '1',
       maxSize: '5',
-      desiredCapacity: zillaPlusCapacity.toString(),
-      targetGroupArns: [nlbTargetGroup.ref]
+      desiredCapacity: `${context.capacity}`,
+      targetGroupArns: [targetGroup.ref]
     });
 
-    const vpcEndpointService = new ec2.CfnVPCEndpointService(this, 'VpcEndpointService', {
+    const vpceService = new ec2.CfnVPCEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: true,
       networkLoadBalancerArns: [nlb.ref]
     });
@@ -462,13 +410,13 @@ systemctl start zilla-plus
     new cdk.CfnOutput(this, 'VpcEndpointServiceId', 
     { 
       description: "ID of the VPC Endpoint Service",
-      value: vpcEndpointService.ref
+      value: vpceService.ref
     });
 
     new cdk.CfnOutput(this, 'VpcEndpointServiceName', 
     { 
       description: "Name of the VPC Endpoint Service",
-      value: `com.amazonaws.vpce.${this.region}.${vpcEndpointService.ref}`
+      value: `com.amazonaws.vpce.${this.region}.${vpceService.ref}`
     });
   }
 }

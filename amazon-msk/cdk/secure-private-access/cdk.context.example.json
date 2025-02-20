@@ -1,0 +1,27 @@
+{
+  "zilla-plus":
+  {
+    "vpcId": "<your VPC ID>",
+    "msk":
+    {
+      "servers": "<Bootstrap Servers of your MSK Serverless>",
+      "subnetIds": ["<MSK serverless subnetId1>", "<MSK serverless subnetId2>"]
+    },
+    "private":
+    {
+      "wildcardDNS": "<your wildcard dns>",
+      "certificate": "<your tls certificate key ARN>"
+    },
+    "cloudwatch":
+    {
+      "logs":
+      {
+        "group": "<your cloudwatch log group name>"
+      },
+      "metrics":
+      {
+        "namespace": "<your cloudwatch metrics namespace>"
+      }
+    }
+  }
+}

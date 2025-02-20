@@ -1,0 +1,14 @@
+enclave:
+  cpu_count: 2
+  memory_mib: 256
+
+options:
+  sync_interval_secs: 600
+
+tokens:
+  - label: acm-token-example
+    source:
+      Acm:
+        certificate_arn: '{{{private.certificate}}}'
+    refresh_interval_secs: 43200
+    pin: 1234

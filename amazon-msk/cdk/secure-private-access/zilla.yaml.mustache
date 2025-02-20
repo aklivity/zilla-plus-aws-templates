@@ -21,11 +21,15 @@ telemetry:
     aws0:
       type: aws-cloudwatch
       options:
+{{#cloudwatch.logs}}
         logs:
-          group: {{cloudwatch.logs.group}}
-          stream: events
+          group: {{{cloudwatch.logs.group}}}
+          stream: {{{cloudwatch.logs.stream}}}
+{{/cloudwatch.logs}}
+{{#cloudwatch.metrics}}
         metrics:
-          namespace: {{cloudwatch.metrics.namespace}}
+          namespace: {{{cloudwatch.metrics.namespace}}}
+{{/cloudwatch.metrics}}
 {{/cloudwatch}}
 bindings:
   tcp_server:
