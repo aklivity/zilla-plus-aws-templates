@@ -67,7 +67,7 @@ test('Secure Private Access Stack created', () => {
         MinSize: "1",
         TargetGroupARNs: [ 
             { 
-                "Ref": "NLBTargetGroupMyTestStack" 
+                "Ref": "ZillaPlusTargetGroup" 
             }
         ],
         VPCZoneIdentifier: [
@@ -77,7 +77,7 @@ test('Secure Private Access Stack created', () => {
     });
 
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
-        Name: `nlb-tg-MyTestStack`,
+        Name: `zilla-plus-MyTestStack`,
         Port: 9098,
         Protocol: `TCP`,
         VpcId: `vpc-12345`
@@ -86,7 +86,7 @@ test('Secure Private Access Stack created', () => {
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
         LoadBalancerArn:
         {
-            Ref: `NetworkLoadBalancerMyTestStack`
+            Ref: `ZillaPlusLoadBalancer`
         },
         Port: 9098,
         Protocol: `TCP`,
@@ -95,7 +95,7 @@ test('Secure Private Access Stack created', () => {
 
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
         IpAddressType: `ipv4`,
-        Name: `nlb-MyTestStack`,
+        Name: `zilla-plus-MyTestStack`,
         Scheme: `internal`,
         Subnets: [
             "subnet-1",
@@ -115,14 +115,13 @@ test('Secure Private Access Stack created', () => {
             {
                 Name:
                 {
-                    Ref: `ZillaPlusInstanceProfileMyTestStack`
+                    Ref: `ZillaPlusInstanceProfile`
                 }
             },
             ImageId: `ami-1234`,
             NetworkInterfaces:
             [
                 {
-                    AssociatePublicIpAddress: true,
                     DeviceIndex: 0
                 }
             ]
