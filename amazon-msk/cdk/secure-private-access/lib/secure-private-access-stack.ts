@@ -109,10 +109,10 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       )
     }
     else {
-      const securityGroup = new ec2.SecurityGroup(this, 'SecurityGroup-ZillaPlus', {
+      const securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
         vpc: vpc,
         description: `Zilla Plus Security Group`,
-        securityGroupName: `zilla-plus-cdk-${id}`,
+        securityGroupName: `zilla-plus-${id}`,
       });
 
       securityGroup.addIngressRule(
@@ -128,8 +128,6 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       securityGroups = [securityGroup];
       context.securityGroups = [securityGroup.securityGroupId];
     }
-
-    console.log('securityGroups', securityGroups);
 
     for (const serviceName in endpoints) {
       if (endpoints.hasOwnProperty(serviceName)) {
@@ -155,8 +153,8 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
     let zillaPlusRoleName = context.roleName;
 
     if (!zillaPlusRoleName) {
-      const iamRole = new iam.Role(this, `Role-ZillaPlus`, {
-        roleName: `zilla-plus-cdk-${id}`,
+      const iamRole = new iam.Role(this, `ZillaPlus-Role`, {
+        roleName: `zilla-plus-${id}`,
         assumedBy: new iam.CompositePrincipal(
           new iam.ServicePrincipal('ec2.amazonaws.com'),
           new iam.ServicePrincipal('cloudformation.amazonaws.com')
@@ -189,8 +187,8 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         },
       });
 
-      const iamInstanceProfile = new iam.CfnInstanceProfile(this, `InstanceProfile-ZillaPlus`, {
-        instanceProfileName: `zilla-plus-cdk-${id}`,
+      const iamInstanceProfile = new iam.CfnInstanceProfile(this, `ZillaPlus-InstanceProfile`, {
+        instanceProfileName: `zilla-plus-${id}`,
         roles: [iamRole.roleName],
       });
 
@@ -212,7 +210,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       });
 
       if (nitroEnclavesEnabled) {
-        const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `EnclaveCertificateIamRoleAssociation-ZillaPlus`, {
+        const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlus-EnclaveCertificateIamRoleAssociation`, {
           certificateArn: context.private.certificate,
           roleArn: iamRole.roleArn,
         });
@@ -239,7 +237,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         );
       }
 
-      new iam.CfnPolicy(this, `Policy-ZillaPlus`, {
+      new iam.CfnPolicy(this, `ZillaPlus-Policy`, {
         policyName: `ZillaPlus-${id}`,
         roles: [iamRole.roleName],
         policyDocument: iamPolicy.toJSON(),
@@ -314,22 +312,22 @@ systemctl start nitro-enclaves-acm.service
       imageId = ami.getImage(this).imageId;
     }
 
-    const nlb = new elbv2.CfnLoadBalancer(this, `LoadBalancer-ZillaPlus`, {
-      name: `zilla-plus-cdk-${id}`,
+    const nlb = new elbv2.CfnLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
+      name: `zilla-plus-${id}`,
       scheme: 'internal',
       subnets: context.msk.subnetIds,
       type: 'network',
       ipAddressType: 'ipv4',
     });
 
-    const targetGroup = new elbv2.CfnTargetGroup(this, `TargetGroup-ZillaPlus`, {
-      name: `zilla-plus-cdk-${id}`,
+    const targetGroup = new elbv2.CfnTargetGroup(this, `ZillaPlus-TargetGroup`, {
+      name: `zilla-plus-${id}`,
       port: context.private.port,
       protocol: 'TCP',
       vpcId: context.vpcId,
     });
 
-    new elbv2.CfnListener(this, `Listener-ZillaPlus`, {
+    new elbv2.CfnListener(this, `ZillaPlus-Listener`, {
       loadBalancerArn: nlb.ref,
       port: context.private.port,
       protocol: 'TCP',
@@ -373,8 +371,8 @@ region=${this.region}
     const cfnAutoReloaderConfContent = `
 [cfn-auto-reloader-hook]
 triggers=post.update
-path=Resources.LaunchTemplate-ZillaPlus.MetaData.AWS::CloudFormation::Init
-action=/opt/aws/bin/cfn-init -v --stack ${id} --resource LaunchTemplate-ZillaPlus --region ${this.region}
+path=Resources.ZillaPlusLaunchTemplate.MetaData.AWS::CloudFormation::Init
+action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${this.region}
 runas=root
     `;
 
@@ -415,7 +413,7 @@ systemctl start zilla-plus
 
     `;
     
-    const launchTemplate = new ec2.CfnLaunchTemplate(this, `LaunchTemplate-ZillaPlus`, {
+    const launchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
       launchTemplateData: {
         imageId: imageId,
         instanceType: context.instanceType,
@@ -432,13 +430,22 @@ systemctl start zilla-plus
           enabled: nitroEnclavesEnabled,
         },
         keyName: context.sshKey,
-        userData: cdk.Fn.base64(userData)
-      },
+        userData: cdk.Fn.base64(userData),
+        tagSpecifications: [
+          {
+            resourceType: 'instance',
+            tags: [
+              {
+                key: 'Name',
+                value: `ZillaPlus-${id}`
+              }
+            ]
+          }
+        ]
+  }
     });
 
-    console.log('securityGroups', context.securityGroups);
-
-    new autoscaling.CfnAutoScalingGroup(this, `AutoScalingGroup-ZillaPlus`, {
+    new autoscaling.CfnAutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
       vpcZoneIdentifier: context.msk.subnetIds,
       launchTemplate: {
         launchTemplateId: launchTemplate.ref,
@@ -450,7 +457,7 @@ systemctl start zilla-plus
       targetGroupArns: [targetGroup.ref]
     });
 
-    const vpceService = new ec2.CfnVPCEndpointService(this, 'VpcEndpointService-ZillaPlus', {
+    const vpceService = new ec2.CfnVPCEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: true,
       networkLoadBalancerArns: [nlb.ref]
     });

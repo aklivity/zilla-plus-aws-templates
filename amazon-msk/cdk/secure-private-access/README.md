@@ -214,7 +214,7 @@ Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.con
     "cloudwatch":
     {
         "disabled": false,
-        "logs": 
+        "logs":
         {
             "group": "<your cloudwatch log group name>"
         },
@@ -254,7 +254,7 @@ aws cloudwatch list-metrics \
   --query "Metrics[?\!contains(Namespace, 'AWS')].Namespace" \
   --output table \
 | sort \
-| uniq 
+| uniq
 ```
 
 Optionally override the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `zilla-plus` `cloudwatch` `metrics` `namespace` variable.
@@ -315,10 +315,10 @@ cdk deploy
 Sample output:
 ```bash
 Outputs:
-SecurePrivateAccessStack.VpcEndpointServiceId = vpce-svc-1234567
-SecurePrivateAccessStack.VpcEndpointServiceName = com.amazonaws.vpce.<region>.vpce-svc-1234567
+SecurePrivateAccess.VpcEndpointServiceId = vpce-svc-1234567
+SecurePrivateAccess.VpcEndpointServiceName = com.amazonaws.vpce.<region>.vpce-svc-1234567
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccessStack/abcd1234
+arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccess/<uuid>
 ```
 
 Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC Endpoint Service Name`, as you'll need these in the following steps when you add the `VPC Endpoint` from the client VPC.
@@ -327,7 +327,7 @@ Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC End
 
 ### Add a VPC endpoint in the client VPC
 
-You need to add a VPC Endpoint pointing to the Zilla Plus's VPC Endpoint Service in your client VPC. 
+You need to add a VPC Endpoint pointing to the Zilla Plus's VPC Endpoint Service in your client VPC.
 
 ```bash
 aws ec2 create-vpc-endpoint \
@@ -359,7 +359,7 @@ aws route53 create-hosted-zone \
   --name example.aklivity.io \
   --vpc VPCRegion=<region>,VPCId=<Your Client VPC ID> \
   --caller-reference <unique caller id> \
-  --hosted-zone-config PrivateZone=true 
+  --hosted-zone-config PrivateZone=true
 ```
 The `create-hosted-zone` response includes the newly created custom domain `HostedZone` `Id` in `Z##########` format, which is needed to create DNS records within the hosted zone.
 
@@ -408,7 +408,7 @@ You can use the created role in the next step for client machine that assumes th
 
 Follow the AWS guide to [Create a client machine to access MSK Serverless cluster] to be able to connect from your Kafka client running in a different VPC.
 
-This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". Now that you deployed Zilla Plus, you can provide the client VPC where you configured the VPC Endpoint instead. 
+This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". Now that you deployed Zilla Plus, you can provide the client VPC where you configured the VPC Endpoint instead.
 
 Make sure to download one of the latest versions of `aws-msk-iam-auth` jar file if you want to use `OAUTHBEARER` authentication mechanism, as that's not included in `v1.1.1`
 
