@@ -1,11 +1,14 @@
 {
-  "zilla-plus":
+  "SecurePrivateAccess":
   {
-    "vpcId": "<your VPC ID>",
+    "vpcId": "<your MSK serverless VPC ID>",
     "msk":
     {
       "servers": "<Bootstrap Servers of your MSK Serverless>",
-      "subnetIds": ["<MSK serverless subnetId1>", "<MSK serverless subnetId2>"]
+      "subnetIds": [
+        "<MSK Serverless subnetId-1>",
+        "<MSK Serverless subnetId-2>"
+      ]
     },
     "private":
     {
@@ -23,5 +26,14 @@
         "namespace": "<your cloudwatch metrics namespace>"
       }
     }
+  },
+  "SecurePrivateAccessClient":
+  {
+    "vpcId": "<your remote client VPC ID>",
+    "subnetIds": [
+      "<Remote client subnetId-1>"
+    ],
+    "wildcardDNS": "<your wildcard dns>",
+    "vpceServiceName": "<SecurePrivateAccess.VpcEndpointServiceName stack output>"
   }
 }

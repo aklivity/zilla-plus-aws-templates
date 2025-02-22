@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import * as ExampleCluster from '../lib/secure-private-access-stack';
+import * as ExampleCluster from '../lib/SecurePrivateAccessStack';
 import { Template } from 'aws-cdk-lib/assertions';
 
 test('Secure Private Access Stack created', () => {
@@ -31,8 +31,8 @@ test('Secure Private Access Stack created', () => {
                         ]
                       }
                     ]
-                  },   
-                "zilla-plus":
+                },   
+                "SecurePrivateAccess":
                 {
                     "vpcId": "vpc-12345",
                     "msk":
@@ -49,7 +49,7 @@ test('Secure Private Access Stack created', () => {
             }
         }
     );
-    const stack = new ExampleCluster.ZillaPlusSecurePrivateAccessStack(app, 'MyTestStack', {
+    const stack = new ExampleCluster.SecurePrivateAccessStack(app, 'MyTestStack', {
         env: {
             account: '12345678',
             region: 'us-east-1'
@@ -58,8 +58,6 @@ test('Secure Private Access Stack created', () => {
     });
 
     const template = Template.fromStack(stack);
-
-    console.log(template);
 
     template.hasResourceProperties('AWS::AutoScaling::AutoScalingGroup', {
         DesiredCapacity: "2",
