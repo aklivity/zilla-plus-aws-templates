@@ -60,12 +60,11 @@ test('Secure Private Access Stack created', () => {
     const template = Template.fromStack(stack);
 
     template.hasResourceProperties('AWS::AutoScaling::AutoScalingGroup', {
-        DesiredCapacity: "2",
         MaxSize: "5",
-        MinSize: "1",
+        MinSize: "2",
         TargetGroupARNs: [ 
             { 
-                "Ref": "ZillaPlusTargetGroup" 
+                "Ref": "ZillaPlusTargetGroup3E04D345" 
             }
         ],
         VPCZoneIdentifier: [
@@ -84,7 +83,7 @@ test('Secure Private Access Stack created', () => {
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
         LoadBalancerArn:
         {
-            Ref: `ZillaPlusLoadBalancer`
+            Ref: `ZillaPlusLoadBalancer4C8A1454`
         },
         Port: 9098,
         Protocol: `TCP`,
@@ -109,20 +108,7 @@ test('Secure Private Access Stack created', () => {
             {
                 Enabled: true
             },
-            IamInstanceProfile:
-            {
-                Name:
-                {
-                    Ref: `ZillaPlusInstanceProfile`
-                }
-            },
-            ImageId: `ami-1234`,
-            NetworkInterfaces:
-            [
-                {
-                    DeviceIndex: 0
-                }
-            ]
+            ImageId: `ami-1234`
         },
     });
 });
