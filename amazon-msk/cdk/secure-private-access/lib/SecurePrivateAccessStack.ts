@@ -25,7 +25,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.tryGetContext('SecurePrivateAccess');
+    const context = this.node.getContext(id);
 
     // validate context
     validateRequiredKeys(context, [ 'vpcId', 'msk', 'private' ]);

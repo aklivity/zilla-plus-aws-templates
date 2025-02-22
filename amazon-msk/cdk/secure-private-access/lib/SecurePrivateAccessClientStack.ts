@@ -10,10 +10,13 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.tryGetContext('SecurePrivateAccessClient');
+    const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'wildcardDNS', 'port', 'vpceServiceName' ]);
+    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'wildcardDNS', 'port' ]);
+
+    // default context
+    context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess.VpcEndpointServiceName");
 
     const vpc = ec2.Vpc.fromLookup(this, 'ClientVpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] });
