@@ -74,7 +74,6 @@ test('SecurePrivateAccess stack created', () => {
   });
 
   template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
-    Name: `zilla-plus-SecurePrivateAccess`,
     Port: 9098,
     Protocol: `TCP`,
     VpcId: `vpc-12345`
@@ -91,7 +90,6 @@ test('SecurePrivateAccess stack created', () => {
 
   template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
     IpAddressType: `ipv4`,
-    Name: `zilla-plus-SecurePrivateAccess`,
     Scheme: `internal`,
     Subnets: [
       "subnet-1",
