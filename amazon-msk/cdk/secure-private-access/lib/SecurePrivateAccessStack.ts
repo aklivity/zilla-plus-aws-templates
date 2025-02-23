@@ -317,7 +317,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
 
     const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
-      launchTemplateName: `zilla-plus-${id}`,
       machineImage: machineImage,
       instanceType: new ec2.InstanceType(context.instanceType),
       role: role,
@@ -327,10 +326,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       userData: ec2.UserData.custom(userdata)
     });
 
-    cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
-
     const loadBalancer = new elbv2.NetworkLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
-      loadBalancerName: `zilla-plus-${id}`,
       internetFacing: false,
       ipAddressType: IpAddressType.IPV4,
       vpc: vpc,
@@ -340,7 +336,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     });
 
     const targetGroup = new elbv2.NetworkTargetGroup(this, `ZillaPlus-TargetGroup`, {
-      targetGroupName: `zilla-plus-${id}`,
       protocol: elbv2.Protocol.TCP,
       port: context.private.port,
       vpc: vpc,
@@ -353,17 +348,24 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       defaultAction: NetworkListenerAction.forward([targetGroup])
     })
 
-    new autoscaling.AutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
+    const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
       vpc: vpc,
       launchTemplate: launchTemplate,
       minCapacity: context.capacity,
       maxCapacity: 5,
-    }).attachToNetworkTargetGroup(targetGroup);
+    });
+
+    autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
     const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: context.vpceService.acceptanceRequired,
       vpcEndpointServiceLoadBalancers: [loadBalancer]
     });
+
+    cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(targetGroup).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(autoScalingGroup).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(vpceService).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'VpcEndpointServiceId', 
     { 
@@ -374,7 +376,8 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'VpcEndpointServiceName', 
     { 
       description: "Name of the VPC Endpoint Service",
-      value: vpceService.vpcEndpointServiceName
+      value: vpceService.vpcEndpointServiceName,
+      exportName: `${id}-VpcEndpointServiceName`
     });
   }
 }

@@ -15,14 +15,13 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     // validate context
     validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'wildcardDNS', 'port' ]);
 
-    // default context
-    context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess.VpcEndpointServiceName");
+    // default context values
+    context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess-VpcEndpointServiceName");
 
     const vpc = ec2.Vpc.fromLookup(this, 'ClientVpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] });
 
     const securityGroup = new ec2.SecurityGroup(this, 'Client-VpcEndpoint-SecurityGroup', {
-      securityGroupName: `client-vpce-${id}`,
       description: `Client VPC Endpoint Security Group`,
       vpc: vpc,
     });
@@ -39,8 +38,6 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
       service : new ec2.InterfaceVpcEndpointService(context.vpceServiceName),
     });
     
-    cdk.Tags.of(vpcEndpoint).add('Name', `ZillaPlus-${id}`);
-
     const hostedZone = new route53.PrivateHostedZone(this, 'Client-HostedZone', {
       vpc: vpc,
       zoneName: context.wildcardDNS.replace(/[^.]+./, '')
@@ -52,6 +49,10 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
       recordName: '*',
       target: route53.RecordTarget.fromAlias(new InterfaceVpcEndpointTarget(vpcEndpoint))
     });
+
+    cdk.Tags.of(securityGroup).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(hostedZone).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(vpcEndpoint).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'VpcEndpointId', { 
       description: "ID of the VPC Endpoint",
