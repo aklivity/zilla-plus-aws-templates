@@ -34,6 +34,7 @@
       "<Remote client subnetId-1>"
     ],
     "wildcardDNS": "<your wildcard dns>",
+    "port": "<your private access port>",
     "vpceServiceName": "<defaults to import stack output export SecurePrivateAccess-VpcEndpointServiceName>"
   }
 }
