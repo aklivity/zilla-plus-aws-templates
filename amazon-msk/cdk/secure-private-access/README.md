@@ -3,6 +3,7 @@
 Deploy [Zilla Plus for Amazon MSK] via the AWS Cloud Development Kit (CDK).
 
 - [MskServerlessCluster](README.MskServerlessCluster.md)
+- [MskProvisionedCluster](README.MskProvisionedCluster.md)
 - [SecurePrivateAccess](README.SecurePrivateAccess.md)
 - [SecurePrivateAccessClient](README.SecurePrivateAccessClient.md)
 
