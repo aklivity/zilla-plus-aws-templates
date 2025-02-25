@@ -1,4 +1,4 @@
-# Secure Private Access Client deploy via CDK
+# Deploy SecurePrivateAccessClient stack via CDK
 
 This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access Client using CDK that allows Kafka Clients to reach a MSK Serverless cluster from an authorized VPC, even if the client VPC is owned by a different AWS account.
 
