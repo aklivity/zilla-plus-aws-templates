@@ -53,6 +53,12 @@ This variable defines the port number to be used by Kafka clients.
 
 Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient`  `port` variable.
 
+### `vpceServiceName` Zilla Plus VPC Endpoint Service Name
+
+> Default: (import `VpcEndpointServiceName` from `SecurePrivateAccess` stack)
+
+Optionally override the default VPC Endpoint Service Name via `cdk.context.json`, in the `SecurePrivateAccessClient`  `vpceServiceName` variable.
+
 ## Deploy the stack via CDK
 
 ### Install Project Dependencies
