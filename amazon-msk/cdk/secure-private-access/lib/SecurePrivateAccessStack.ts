@@ -85,6 +85,10 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     }
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
+    const subnets = vpc.selectSubnets();
+    if (subnets.isPendingLookup) {
+      return;
+    }
 
     let securityGroup;
 
@@ -309,11 +313,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
           },
         });
 
-    // const instanceProfile = new iam.InstanceProfile(this, `ZillaPlus-InstanceProfile`, {
-    //   instanceProfileName: `zilla-plus-${id}`,
-    //   role: role
-    // });
-
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
 
     const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
@@ -363,8 +362,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     });
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
-    cdk.Tags.of(targetGroup).add('Name', `ZillaPlus-${id}`);
-    cdk.Tags.of(autoScalingGroup).add('Name', `ZillaPlus-${id}`);
     cdk.Tags.of(vpceService).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'VpcEndpointServiceId', 
