@@ -111,7 +111,6 @@ aws ec2 accept-vpc-endpoint-connections \
 The `VPC Endpoint Service ID` can be obtained from the `SecurePrivateAccess` stack outputs.
 The `VPC Endpoint ID` can be obtained from the `SecurePrivateAccessClient` stack outputs.
 
-
 ### Create IAM Role for MSK Serverless
 
 Follow the AWS guide to [Create an IAM role for topics on MSK Serverless cluster] to grants access to certain Kafka operations.
