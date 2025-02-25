@@ -21,5 +21,32 @@
       "<your remote client subnetId-1>"
     ],
     "server": "<your custom domain bootstrap server>"
+  },
+  "SecurePublicAccess":
+  {
+    "vpcId": "<your Amazon MSK Provisioned VPC ID>",
+    "subnetIds": [
+      "<your Amazon MSK Provisioned subnetId-1>",
+      "<your Amazon MSK Provisioned subnetId-2>"
+    ],
+    "internal": {
+      "servers": "<your Amazon MSK Provisioned bootstrap servers>",
+      "trust": "<your Amazon MSK Provisioned Certificate Authority ARN>"
+    },
+    "external": {
+      "servers": "<your custom domain bootstrap servers>",
+      "certificate": "<your custom domain wildcard tls certificate key ARN>",
+      "trust": "<your custom domain Certificate Authority ARN, defaults to same as Amazon MSK>"
+    }
+  },
+  "MskProvisionedCluster": {
+    "authentication": {
+      "unauthenticated": false,
+      "sasl": {
+        "iam": false,
+        "scram": "alice"
+      },
+      "mtls": [ "<your Amazon MSK Provisioned Certificate Authority ARN>" ]
+    }
   }
 }

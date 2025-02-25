@@ -6,7 +6,7 @@ import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling 
 import Mustache = require("mustache");
 import fs =  require("fs");
 import * as path from 'path';
-import { LogGroup, LogStream } from 'aws-cdk-lib/aws-logs';
+import { LogGroup } from 'aws-cdk-lib/aws-logs';
 import { validateRequiredKeys } from './validateRequiredKeys';
 import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 

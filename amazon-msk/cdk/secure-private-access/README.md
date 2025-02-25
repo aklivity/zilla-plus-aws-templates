@@ -1,7 +1,8 @@
 # Deploy Zilla Plus via CDK
 
-Deploy [Zilla Plus for Amazon MSK] via CDK for each of the following scenarios.
+Deploy [Zilla Plus for Amazon MSK] via CDK via the following scenarios.
 
+- [MskProvisionedCluster](README.MskProvisionedCluster.md)
 - [SecurePrivateAccess](README.SecurePrivateAccess.md)
 - [SecurePrivateAccessClient](README.SecurePrivateAccessClient.md)
 
