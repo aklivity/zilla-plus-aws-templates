@@ -32,7 +32,7 @@ interface MskProvisionedClusterContext {
 }
 
 export class MskProvisionedClusterStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
