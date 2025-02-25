@@ -255,7 +255,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     const zillaYamlPath = path.resolve(__dirname, '../zilla.yaml');
     const zillaYaml: string = fs.existsSync(zillaYamlPath)
       ? fs.readFileSync(zillaYamlPath, 'utf-8')
-      : this.renderMustache('zilla.yaml.mustache', zillaYamlData);
+      : this.renderMustache('SecureAccess/zilla.yaml.mustache', zillaYamlData);
 
     userdataData.yaml = {
       ...userdataData.yaml,
