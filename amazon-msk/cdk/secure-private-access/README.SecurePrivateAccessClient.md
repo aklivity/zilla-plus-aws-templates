@@ -45,7 +45,7 @@ Set the Subnet IDs where Kafka clients are to be deployed via `cdk.context.json`
 
 Set the wildcard DNS pattern for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient` `wildcardDNS` variable.
 
-#### `port`: Zilla Plus Port
+### `port`: Zilla Plus Port
 
 > Default: `9098`
 
