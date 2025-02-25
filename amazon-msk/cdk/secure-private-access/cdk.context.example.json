@@ -1,40 +1,25 @@
 {
   "SecurePrivateAccess":
   {
-    "vpcId": "<your MSK serverless VPC ID>",
-    "msk":
-    {
-      "servers": "<Bootstrap Servers of your MSK Serverless>",
-      "subnetIds": [
-        "<MSK Serverless subnetId-1>",
-        "<MSK Serverless subnetId-2>"
-      ]
+    "vpcId": "<your Amazon MSK Serverless VPC ID>",
+    "subnetIds": [
+      "<your Amazon MSK Serverless subnetId-1>",
+      "<your Amazon MSK Serverless subnetId-2>"
+    ],
+    "internal": {
+      "server": "<your Amazon MSK Serverless bootstrap server>"
     },
-    "private":
-    {
-      "wildcardDNS": "<your wildcard dns>",
-      "certificate": "<your tls certificate key ARN>"
-    },
-    "cloudwatch":
-    {
-      "logs":
-      {
-        "group": "<your cloudwatch log group name>"
-      },
-      "metrics":
-      {
-        "namespace": "<your cloudwatch metrics namespace>"
-      }
+    "external": {
+      "server": "<your custom domain bootstrap server>",
+      "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
   },
   "SecurePrivateAccessClient":
   {
     "vpcId": "<your remote client VPC ID>",
     "subnetIds": [
-      "<Remote client subnetId-1>"
+      "<your remote client subnetId-1>"
     ],
-    "wildcardDNS": "<your wildcard dns>",
-    "port": "<your private access port>",
-    "vpceServiceName": "<defaults to import stack output export SecurePrivateAccess-VpcEndpointServiceName>"
+    "server": "<your custom domain bootstrap server>"
   }
 }

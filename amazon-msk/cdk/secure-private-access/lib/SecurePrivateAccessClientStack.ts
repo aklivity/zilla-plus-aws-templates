@@ -13,10 +13,12 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'wildcardDNS', 'port' ]);
+    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'server' ]);
 
     // default context values
     context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess-VpcEndpointServiceName");
+
+    const [server, port] = context.server.split(',')[0].split(':');
 
     const vpc = ec2.Vpc.fromLookup(this, 'ClientVpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] });
@@ -28,7 +30,7 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
 
     securityGroup.addIngressRule(
       ec2.Peer.ipv4(vpc.vpcCidrBlock),
-      ec2.Port.tcp(context.port),
+      ec2.Port.tcp(Number(port)),
       'Allow inbound traffic on Kafka IAM port');
 
     const vpcEndpoint = new ec2.InterfaceVpcEndpoint(this, 'Client-VpcEndpoint', {
@@ -40,7 +42,7 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     
     const hostedZone = new route53.PrivateHostedZone(this, 'Client-HostedZone', {
       vpc: vpc,
-      zoneName: context.wildcardDNS.replace(/[^.]+./, '')
+      zoneName: server.replace(/[^.]+./, '')
     });
 
     new route53.RecordSet(this, 'Client-HostedZoneRecords', {

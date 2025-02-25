@@ -11,13 +11,10 @@ import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aw
 
 interface TemplateData {
   name: string;
-  useAcm: boolean;
+  vault: string;
   cloudwatch?: object;
-  private?: object;
-  externalHost?: string;
-  internalHost?: string;
-  defaultInternalHost?: string;
-  msk?: object;
+  internal?: object;
+  external?: object;
 }
 
 export class SecurePrivateAccessStack extends cdk.Stack {
@@ -28,27 +25,31 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'msk', 'private' ]);
-    validateRequiredKeys(context.msk, [ 'servers', 'subnetIds' ]);
-    validateRequiredKeys(context.private, [ 'certificate', 'wildcardDNS' ]);
+    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'internal', 'external' ]);
+    validateRequiredKeys(context.internal, [ 'server' ]);
+    validateRequiredKeys(context.external, [ 'server', 'certificate' ]);
 
     // detect dependencies
-    const nitroEnclavesEnabled: boolean = context.private.certificate.startsWith("arn:aws:acm");
-    const secretsmanagerEnabled: boolean = context.private.certificate.startsWith("arn:aws:secretsmanager");
+    const nitroEnclavesEnabled: boolean = context.external.certificate.startsWith("arn:aws:acm");
+    const secretsmanagerEnabled: boolean = context.external.certificate.startsWith("arn:aws:secretsmanager");
     const cloudwatchEnabled: boolean = context?.cloudwatch?.logs?.group || context.cloudwatch?.metrics?.namespace;
 
     // apply context defaults
-    context.private.port ??= 9098;
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
-    context.vpceService ??= {}
-    context.vpceService.acceptanceRequired ??= true;
+
+    const [internalServer, internalPort] = context.internal.server.split(',')[0].split(':');
+    const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
+
+    const [externalServer, externalPort] = context.external.server.split(',')[0].split(':');
+    const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
 
     // zilla.yaml template data
     const zillaYamlData: TemplateData = {
       name: 'private',
-      useAcm: nitroEnclavesEnabled,
-      private: {}
+      vault: nitroEnclavesEnabled ? 'aws-acm' : 'aws-secrets',
+      internal: {},
+      external: {}
     };
 
     let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
@@ -105,7 +106,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
-        ec2.Port.tcp(context.private.port),
+        ec2.Port.tcp(Number(externalPort)),
         'Allow inbound traffic on Kafka IAM port');
     }
 
@@ -114,21 +115,18 @@ export class SecurePrivateAccessStack extends cdk.Stack {
         if (serviceName == "s3") {
           vpc.addGatewayEndpoint("Endpoint-s3-gateway", {
             service: ec2.GatewayVpcEndpointAwsService.S3,
-            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] }],
+            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] }],
           });
         }
 
         const service = endpoints[serviceName as keyof typeof endpoints];
         vpc.addInterfaceEndpoint(`Endpoint-${serviceName}`, {
           service: service,
-          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] },
+          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
           securityGroups: [securityGroup]
         });
       }
     }
-
-    const [mskServer, mskPort] = context.msk.servers.split(',')[0].split(':');
-    const mskWildcardDNS = `*-${mskServer.split('-').slice(1).join("-")}`;
 
     let role;
 
@@ -190,7 +188,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
       if (nitroEnclavesEnabled) {
         const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlus-EnclaveCertificateIamRoleAssociation`, {
-          certificateArn: context.private.certificate,
+          certificateArn: context.external.certificate,
           roleArn: role.roleArn,
         });
 
@@ -251,25 +249,28 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    const externalDomain = context.private.wildcardDNS.split("*.")[1];
+    const externalDomain = externalWildcardDNS.split("*.")[1];
     const externalHost = `b-#.${externalDomain}`;
 
-    const internalDomain = mskWildcardDNS.split("*-")[1];
+    const internalDomain = internalWildcardDNS.split("*-")[1];
     const internalHost = `b#-${internalDomain}`;
     const defaultInternalHost = `boot-${internalDomain}`;
 
-    zillaYamlData.private = {
-      ...zillaYamlData.private,
-      ...context.private
+    zillaYamlData.external = {
+      ...zillaYamlData.external,
+      certificate: context.external.certificate,
+      authority: externalWildcardDNS,
+      host: externalHost,
+      port: Number(externalPort)
     }
-    zillaYamlData.externalHost = externalHost;
-    zillaYamlData.internalHost = internalHost;
-    zillaYamlData.defaultInternalHost = defaultInternalHost;
-    zillaYamlData.msk = {
-      ...zillaYamlData.msk,
-      port: mskPort,
-      wildcardDNS: mskWildcardDNS
-    };
+
+    zillaYamlData.internal = {
+      ...zillaYamlData.internal,
+      authority: internalWildcardDNS,
+      host: internalHost,
+      port: Number(internalPort),
+      defaultHost: defaultInternalHost
+    }
 
     let userdataData = {
       stack: `${id}`,
@@ -279,7 +280,9 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
     if (nitroEnclavesEnabled) {
       const acmYamlData = {
-        private: context.private
+        external: {
+          certificate: context.external.certificate
+        }
       }
       const acmYamlMustache: string = fs.readFileSync('acm.yaml.mustache', 'utf8');
       const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
@@ -329,20 +332,20 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       internetFacing: false,
       ipAddressType: IpAddressType.IPV4,
       vpc: vpc,
-      vpcSubnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] },
+      vpcSubnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
       // securityGroups: [securityGroup],
       // enforceSecurityGroupInboundRulesOnPrivateLinkTraffic: false
     });
 
     const targetGroup = new elbv2.NetworkTargetGroup(this, `ZillaPlus-TargetGroup`, {
       protocol: elbv2.Protocol.TCP,
-      port: context.private.port,
+      port: Number(externalPort),
       vpc: vpc,
       targetType: TargetType.INSTANCE
     });
 
-    loadBalancer.addListener(`TCP-${context.private.port}`, {
-      port: context.private.port,
+    loadBalancer.addListener(`TCP-${externalPort}`, {
+      port: Number(externalPort),
       protocol: elbv2.Protocol.TCP,
       defaultAction: NetworkListenerAction.forward([targetGroup])
     })
@@ -357,7 +360,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
     const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
-      acceptanceRequired: context.vpceService.acceptanceRequired,
+      acceptanceRequired: true,
       vpcEndpointServiceLoadBalancers: [loadBalancer]
     });
 

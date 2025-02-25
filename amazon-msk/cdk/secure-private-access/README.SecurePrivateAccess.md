@@ -65,17 +65,29 @@ aws ec2 describe-subnets \
 
 Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `vpcId` variable.
 
-### `msk` related variables
+#### `subnetIds`: Subnet IDs
+
+The subnet IDs of your deployed MSK Serverless cluster.
+
+```bash
+aws kafka list-clusters-v2 \
+  --cluster-type SERVERLESS \
+  --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
+  --output json
+```
+
+Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `subnetIds` variable.
+
+### `internal` related variables
 
 ```json
-    "msk":
+    "internal":
     {
-        "servers": "<Bootstrap Servers of your MSK Serverless>",
-        "subnetIds": ["<MSK Serverless subnetId1>", "<MSK Serverless subnetId2>"]
+      "server": "<your Amazon MSK Serverless bootstrap server>"
     }
 ```
 
-#### `servers`: MSK Serverless Bootstrap Servers
+#### `server`: MSK Serverless bootstrap server
 
 To get the bootstrap servers of the MSK Serverless Cluster run:
 
@@ -86,36 +98,24 @@ aws kafka get-bootstrap-brokers \
     --output json
 ```
 
-Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `msk` `servers` variable.
+Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `internal` `server` variable.
 
-#### `subnetIds`: Subnets of your deployed MSK Serverless Cluster
-
-```bash
-aws kafka list-clusters-v2 \
-  --cluster-type SERVERLESS \
-  --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
-  --output json
-```
-
-Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `msk` `subnetIds` variable.
-
-### `private` Zilla Plus variables
+### `external` Zilla Plus variables
 
 ```json
-    "private":
+    "external":
     {
-        "wildcardDNS": "<your private wildcard dns>",
-        "certificate": "<your private tls certificate key ARN>",
-        "port": "<your private port>"
+      "server": "<your custom domain bootstrap server>",
+      "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
 ```
 
-#### `wildcardDNS`: Zilla Plus Wildcard DNS
+#### `server`: Custom domain bootstrap server
 
-This variable defines the private wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
-It should match the wildcard DNS of the private TLS certificate.
+This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
+The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
 
-Set the wildcard DNS pattern for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `wildcardDNS` variable.
+Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `server` variable.
 
 #### `certificate`: Zilla Plus TLS Certificate ARN
 
@@ -130,7 +130,7 @@ aws acm list-certificates \
   --output table
 ```
 
-Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `certificate` variable.
+Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
@@ -142,15 +142,7 @@ aws secretsmanager list-secrets \
   --output table
 ```
 
-Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `certificate` variable.
-
-#### `port`: Zilla Plus Port
-
-> Default: `9098`
-
-This variable defines the port number to be used by Kafka clients.
-
-Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `port` variable.
+Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `certificate` variable.
 
 ### `capacity`: Zilla Plus EC2 Instances
 
@@ -158,7 +150,7 @@ Optionally override the default port for Zilla Plus via `cdk.context.json`, in t
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `capacity` variable.
+Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `capacity` variable.
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -168,7 +160,7 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `private` `instanceType` variable.
+Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `instanceType` variable.
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
@@ -186,7 +178,7 @@ aws iam list-roles \
 
 Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `roleName` variable.
 
-### `securityGroups`: Zilla Plus EC2 Instance Security Groups
+### `securityGroup`: Zilla Plus EC2 Instance Security Group
 
 > Default: (generated)
 
@@ -200,7 +192,7 @@ aws ec2 describe-security-groups \
   --output table
 ```
 
-Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `securityGroups` variable.
+Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `securityGroup` variable.
 
 ### `cloudwatch` Zilla Plus variables
 

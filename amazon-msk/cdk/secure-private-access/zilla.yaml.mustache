@@ -1,7 +1,7 @@
 name: {{name}}
 vaults:
   secure:
-    type: {{#useAcm}}aws-acm{{/useAcm}}{{^useAcm}}aws-secrets{{/useAcm}}
+    type: {{vault}}
 telemetry:
   metrics:
     - stream.active.received
@@ -37,7 +37,7 @@ bindings:
     kind: server
     options:
       host: 0.0.0.0
-      port: {{private.port}}
+      port: {{external.port}}
     telemetry:
       metrics:
         - stream.*
@@ -48,25 +48,25 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{{private.certificate}}}
+        - {{{external.certificate}}}
     telemetry:
       metrics:
         - stream.*
     routes:
       - exit: kafka_proxy
         when:
-          - authority: '{{private.wildcardDNS}}'
+          - authority: '{{external.authority}}'
   kafka_proxy:
     type: kafka-proxy
     kind: proxy
     options:
       external:
-        host: '{{externalHost}}'
-        port: {{private.port}}
+        host: '{{external.host}}'
+        port: {{external.port}}
       internal:
-        host: '{{internalHost}}'
-        port: {{msk.port}}
-        default: '{{defaultInternalHost}}'
+        host: '{{internal.host}}'
+        port: {{internal.port}}
+        default: '{{internal.defaultHost}}'
     telemetry:
       metrics:
         - stream.*
@@ -86,11 +86,11 @@ bindings:
     kind: client
     options:
       host: '*'
-      port: {{msk.port}}
+      port: {{internal.port}}
     telemetry:
       metrics:
         - stream.*
     routes:
       - when:
-        - authority: '{{msk.wildcardDNS}}'
+        - authority: '{{internal.authority}}'
 

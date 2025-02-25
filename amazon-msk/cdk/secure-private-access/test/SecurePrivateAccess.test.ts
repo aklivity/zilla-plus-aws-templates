@@ -35,14 +35,14 @@ test('SecurePrivateAccess stack created', () => {
       "SecurePrivateAccess":
       {
         "vpcId": "vpc-12345",
-        "msk":
+        "subnetIds": ["subnet-1", "subnet-2"],
+        "internal":
         {
-          "servers": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098",
-          "subnetIds": ["subnet-1", "subnet-2"]
+          "server": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098"
         },
-        "private":
+        "external":
         {
-          "wildcardDNS": "*.example.aklivity.io",
+          "server": "boot.example.aklivity.io:9098",
           "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
         }
       }

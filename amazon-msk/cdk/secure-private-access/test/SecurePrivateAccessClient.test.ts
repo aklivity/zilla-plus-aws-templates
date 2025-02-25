@@ -37,8 +37,7 @@ test('SecurePrivateAccessStackClient stack created', () => {
         "subnetIds": [
           "subnet-1"
         ],
-        "wildcardDNS": "*.example.aklivity.io",
-        "port": 9098
+        "server": "boot.example.aklivity.io:9098"
       }
     }
   });
