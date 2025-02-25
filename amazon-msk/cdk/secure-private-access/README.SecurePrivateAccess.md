@@ -313,6 +313,14 @@ Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC End
 
 Deploy the [`SecurePrivateAccessClient`](README.SecurePrivateAccessClient.md) stack to connect to your MSK Serverless cluster from a different VPC.
 
+### Destroy the stack
+
+Destroy the `SecurePrivateAccess` stack when you no longer need it.
+
+```bash
+cdk destroy SecurePrivateAccess
+```
+
 [ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html
 [Zilla Plus for Amazon MSK]: https://aws.amazon.com/marketplace/pp/prodview-jshnzslazfm44
 [Install Node.js]: https://nodejs.org/en/download/package-manager

@@ -201,6 +201,14 @@ Then on the client EC2 instance in a different region, follow the `Connect to yo
 export AWS_REGION=<target region>
 ```
 
+### Destroy the stack
+
+Destroy the `SecurePrivateAccessClient` stack when you no longer need it.
+
+```bash
+cdk destroy SecurePrivateAccessClient
+```
+
 [Install Node.js]: https://nodejs.org/en/download/package-manager
 [Install AWS CDK]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
 [Install AWS CLI]: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html
