@@ -5,60 +5,52 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
 import Mustache = require("mustache");
 import fs =  require("fs");
+import * as path from 'path';
 import { LogGroup, LogStream } from 'aws-cdk-lib/aws-logs';
+import { validateRequiredKeys } from './validateRequiredKeys';
+import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 
 interface TemplateData {
   name: string;
-  useAcm: boolean;
+  vault: string;
   cloudwatch?: object;
-  private?: object;
-  externalHost?: string;
-  internalHost?: string;
-  defaultInternalHost?: string;
-  msk?: object;
+  internal?: object;
+  external?: object;
 }
 
-export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
+export class SecurePrivateAccessStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    function validateRequiredKeys(node: | object, keys: string[]): void {
-      const missingKeys = [];
-      if (node instanceof Node) {
-        missingKeys.push(...keys.filter((key) => !node.tryGetContext(key)));
-      } else if (typeof node === 'object' && node !== null) {
-        missingKeys.push(...keys.filter((key) => !(key in node)));
-      } else {
-        throw new Error(`Invalid node type. Must be either a constructs.Node or a JSON object.`);
-      }
-      if (missingKeys.length > 0) {
-        throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
-      }
-    }
-    
     // lookup context
-    const context = this.node.tryGetContext('zilla-plus');
+    const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'msk', 'private' ]);
-    validateRequiredKeys(context.msk, [ 'servers', 'subnetIds' ]);
-    validateRequiredKeys(context.private, [ 'certificate', 'wildcardDNS' ]);
+    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'internal', 'external' ]);
+    validateRequiredKeys(context.internal, [ 'server' ]);
+    validateRequiredKeys(context.external, [ 'server', 'certificate' ]);
 
     // detect dependencies
-    const nitroEnclavesEnabled: boolean = context.private.certificate.startsWith("arn:aws:acm");
-    const secretsmanagerEnabled: boolean = context.private.certificate.startsWith("arn:aws:secretsmanager");
+    const nitroEnclavesEnabled: boolean = context.external.certificate.startsWith("arn:aws:acm");
+    const secretsmanagerEnabled: boolean = context.external.certificate.startsWith("arn:aws:secretsmanager");
     const cloudwatchEnabled: boolean = context?.cloudwatch?.logs?.group || context.cloudwatch?.metrics?.namespace;
 
     // apply context defaults
-    context.private.port ??= 9098;
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+
+    const [internalServer, internalPort] = context.internal.server.split(',')[0].split(':');
+    const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
+
+    const [externalServer, externalPort] = context.external.server.split(',')[0].split(':');
+    const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
 
     // zilla.yaml template data
     const zillaYamlData: TemplateData = {
       name: 'private',
-      useAcm: nitroEnclavesEnabled,
-      private: {}
+      vault: nitroEnclavesEnabled ? 'aws-acm' : 'aws-secrets',
+      internal: {},
+      external: {}
     };
 
     let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
@@ -87,7 +79,7 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
     if (nitroEnclavesEnabled) {
       endpoints = {
         ...endpoints,
-        "acm-pca": new ec2.InterfaceVpcEndpointAwsService("acm-pca"),
+        "acm-pca": ec2.InterfaceVpcEndpointAwsService.PRIVATE_CERTIFICATE_AUTHORITY,
         "kms": ec2.InterfaceVpcEndpointAwsService.KMS,
         "s3": ec2.InterfaceVpcEndpointAwsService.S3,
         "iam": ec2.InterfaceVpcEndpointAwsService.IAM
@@ -97,31 +89,26 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets();
     if (subnets.isPendingLookup) {
-      // return before using the vpc, the cdk will rerun immediately after the lookup
       return;
     }
 
-    let securityGroups = [];
+    let securityGroup;
 
-    if (context.securityGroups) {
-      securityGroups = context.securityGroups.map((sgId: string, index: any) =>
-        ec2.SecurityGroup.fromLookupById(this, `SecurityGroup-${sgId}`, sgId)
-      )
+    if (context.securityGroup) {
+      securityGroup =
+        ec2.SecurityGroup.fromLookupById(this, `ZillaPlus-SecurityGroup`, context.securityGroup);
     }
     else {
-      const securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
-        vpc: vpc,
-        description: `Zilla Plus Security Group`,
+      securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
         securityGroupName: `zilla-plus-${id}`,
+        description: `Zilla Plus Security Group`,
+        vpc: vpc,
       });
 
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
-        ec2.Port.tcp(context.private.port),
+        ec2.Port.tcp(Number(externalPort)),
         'Allow inbound traffic on Kafka IAM port');
-
-      securityGroups = [securityGroup];
-      context.securityGroups = [securityGroup.securityGroupId];
     }
 
     for (const serviceName in endpoints) {
@@ -129,26 +116,23 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         if (serviceName == "s3") {
           vpc.addGatewayEndpoint("Endpoint-s3-gateway", {
             service: ec2.GatewayVpcEndpointAwsService.S3,
-            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] }],
+            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] }],
           });
         }
 
         const service = endpoints[serviceName as keyof typeof endpoints];
         vpc.addInterfaceEndpoint(`Endpoint-${serviceName}`, {
           service: service,
-          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.msk.subnetIds)] },
-          securityGroups: securityGroups
+          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
+          securityGroups: [securityGroup]
         });
       }
     }
 
-    const [mskServer, mskPort] = context.msk.servers.split(',')[0].split(':');
-    const mskWildcardDNS = `*-${mskServer.split('-').slice(1).join("-")}`;
+    let role;
 
-    let zillaPlusRoleName = context.roleName;
-
-    if (!zillaPlusRoleName) {
-      const iamRole = new iam.Role(this, `ZillaPlus-Role`, {
+    if (!context.roleName) {
+      role = new iam.Role(this, `ZillaPlus-Role`, {
         roleName: `zilla-plus-${id}`,
         assumedBy: new iam.CompositePrincipal(
           new iam.ServicePrincipal('ec2.amazonaws.com'),
@@ -182,11 +166,6 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         },
       });
 
-      const iamInstanceProfile = new iam.CfnInstanceProfile(this, `ZillaPlus-InstanceProfile`, {
-        instanceProfileName: `zilla-plus-${id}`,
-        roles: [iamRole.roleName],
-      });
-
       const iamPolicy = new iam.PolicyDocument({
         statements: [
           new iam.PolicyStatement({
@@ -194,20 +173,24 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
             effect: iam.Effect.ALLOW,
             actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
             resources: ['arn:aws:secretsmanager:*:*:secret:*'],
-          }),
+          })
+        ],
+      });
+
+      if (cloudwatchEnabled) {
+        iamPolicy.addStatements(
           new iam.PolicyStatement({
             sid: 'cloudwatchStatement',
             effect: iam.Effect.ALLOW,
             actions: ['logs:*', 'cloudwatch:GenerateQuery', 'cloudwatch:PutMetricData'],
             resources: ['*'],
-          }),
-        ],
-      });
+          }));
+      }
 
       if (nitroEnclavesEnabled) {
         const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlus-EnclaveCertificateIamRoleAssociation`, {
-          certificateArn: context.private.certificate,
-          roleArn: iamRole.roleArn,
+          certificateArn: context.external.certificate,
+          roleArn: role.roleArn,
         });
 
         iamPolicy.addStatements(
@@ -232,13 +215,11 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
         );
       }
 
-      new iam.CfnPolicy(this, `ZillaPlus-Policy`, {
+      new iam.Policy(this, `ZillaPlus-Policy`, {
         policyName: `ZillaPlus-${id}`,
-        roles: [iamRole.roleName],
-        policyDocument: iamPolicy.toJSON(),
+        roles: [role],
+        document: iamPolicy
       });
-
-      zillaPlusRoleName = iamInstanceProfile.ref;
     }
 
     if (context.cloudwatch) {
@@ -269,64 +250,28 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    let imageId =  context.ami;
-    if (!imageId) {
-      const ami = ec2.MachineImage.lookup({
-        name: 'Aklivity Zilla Plus *',
-        filters: {
-          'product-code': ['ca5mgk85pjtbyuhtfluzisgzy'],
-          'is-public': ['true'],
-        },
-      });
-      imageId = ami.getImage(this).imageId;
-    }
-
-    const nlb = new elbv2.CfnLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
-      name: `zilla-plus-${id}`,
-      scheme: 'internal',
-      subnets: context.msk.subnetIds,
-      type: 'network',
-      ipAddressType: 'ipv4',
-    });
-
-    const targetGroup = new elbv2.CfnTargetGroup(this, `ZillaPlus-TargetGroup`, {
-      name: `zilla-plus-${id}`,
-      port: context.private.port,
-      protocol: 'TCP',
-      vpcId: context.vpcId,
-    });
-
-    new elbv2.CfnListener(this, `ZillaPlus-Listener`, {
-      loadBalancerArn: nlb.ref,
-      port: context.private.port,
-      protocol: 'TCP',
-      defaultActions: [
-        {
-          type: 'forward',
-          targetGroupArn: targetGroup.ref,
-        },
-      ],
-    });
-
-    const externalDomain = context.private.wildcardDNS.split("*.")[1];
+    const externalDomain = externalWildcardDNS.split("*.")[1];
     const externalHost = `b-#.${externalDomain}`;
 
-    const internalDomain = mskWildcardDNS.split("*-")[1];
+    const internalDomain = internalWildcardDNS.split("*-")[1];
     const internalHost = `b#-${internalDomain}`;
     const defaultInternalHost = `boot-${internalDomain}`;
 
-    zillaYamlData.private = {
-      ...zillaYamlData.private,
-      ...context.private
+    zillaYamlData.external = {
+      ...zillaYamlData.external,
+      certificate: context.external.certificate,
+      authority: externalWildcardDNS,
+      host: externalHost,
+      port: Number(externalPort)
     }
-    zillaYamlData.externalHost = externalHost;
-    zillaYamlData.internalHost = internalHost;
-    zillaYamlData.defaultInternalHost = defaultInternalHost;
-    zillaYamlData.msk = {
-      ...zillaYamlData.msk,
-      port: mskPort,
-      wildcardDNS: mskWildcardDNS
-    };
+
+    zillaYamlData.internal = {
+      ...zillaYamlData.internal,
+      authority: internalWildcardDNS,
+      host: internalHost,
+      port: Number(internalPort),
+      defaultHost: defaultInternalHost
+    }
 
     let userdataData = {
       stack: `${id}`,
@@ -336,10 +281,11 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
 
     if (nitroEnclavesEnabled) {
       const acmYamlData = {
-        private: context.private
+        external: {
+          certificate: context.external.certificate
+        }
       }
-      const acmYamlMustache: string = fs.readFileSync('acm.yaml.mustache', 'utf8');
-      const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
+      const acmYaml = this.renderMustache('acm.yaml.mustache', acmYamlData);
 
       userdataData.yaml = {
         ...userdataData.yaml,
@@ -347,76 +293,99 @@ export class ZillaPlusSecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    const zillaYamlMustache: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
-    const zillaYaml: string = Mustache.render(zillaYamlMustache, zillaYamlData);
+    const zillaYamlPath = path.resolve(__dirname, '../zilla.yaml');
+    const zillaYaml: string = fs.existsSync(zillaYamlPath)
+      ? fs.readFileSync(zillaYamlPath, 'utf-8')
+      : this.renderMustache('zilla.yaml.mustache', zillaYamlData);
 
     userdataData.yaml = {
       ...userdataData.yaml,
       zilla: zillaYaml
     }
 
-    const userdataMustache: string = fs.readFileSync('userdata.mustache', 'utf8');
-    const userdata: string = Mustache.render(userdataMustache, userdataData);
+    const userdata: string = this.renderMustache('userdata.mustache', userdataData);
 
-    const launchTemplate = new ec2.CfnLaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
-      launchTemplateData: {
-        imageId: imageId,
-        instanceType: context.instanceType,
-        networkInterfaces: [
-          {
-            deviceIndex: 0,
-            groups: context.securityGroups,
+    const machineImage = context.ami ?
+      ec2.MachineImage.genericLinux({
+        [`${cdk.Arn.extractResourceName(context.ami, 'region')}`]: context.ami
+      })
+      : ec2.MachineImage.lookup({
+          name: 'Aklivity Zilla Plus *',
+          filters: {
+            'product-code': ['ca5mgk85pjtbyuhtfluzisgzy'],
+            'is-public': ['true'],
           },
-        ],
-        iamInstanceProfile: {
-          name: zillaPlusRoleName,
-        },
-        enclaveOptions: {
-          enabled: nitroEnclavesEnabled,
-        },
-        keyName: context.sshKey,
-        userData: cdk.Fn.base64(userdata),
-        tagSpecifications: [
-          {
-            resourceType: 'instance',
-            tags: [
-              {
-                key: 'Name',
-                value: `ZillaPlus-${id}`
-              }
-            ]
-          }
-        ]
-      }
+        });
+
+    const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
+
+    const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
+      machineImage: machineImage,
+      instanceType: new ec2.InstanceType(context.instanceType),
+      role: role,
+      nitroEnclaveEnabled: nitroEnclavesEnabled,
+      securityGroup: securityGroup,
+      keyPair: keyPair,
+      userData: ec2.UserData.custom(userdata)
     });
 
-    new autoscaling.CfnAutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
-      vpcZoneIdentifier: context.msk.subnetIds,
-      launchTemplate: {
-        launchTemplateId: launchTemplate.ref,
-        version: '1'
-      },
-      minSize: '1',
-      maxSize: '5',
-      desiredCapacity: `${context.capacity}`,
-      targetGroupArns: [targetGroup.ref]
+    const loadBalancer = new elbv2.NetworkLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
+      internetFacing: false,
+      ipAddressType: IpAddressType.IPV4,
+      vpc: vpc,
+      vpcSubnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
+      // securityGroups: [securityGroup],
+      // enforceSecurityGroupInboundRulesOnPrivateLinkTraffic: false
     });
 
-    const vpceService = new ec2.CfnVPCEndpointService(this, 'ZillaPlus-VpcEndpointService', {
+    const targetGroup = new elbv2.NetworkTargetGroup(this, `ZillaPlus-TargetGroup`, {
+      protocol: elbv2.Protocol.TCP,
+      port: Number(externalPort),
+      vpc: vpc,
+      targetType: TargetType.INSTANCE
+    });
+
+    loadBalancer.addListener(`TCP-${externalPort}`, {
+      port: Number(externalPort),
+      protocol: elbv2.Protocol.TCP,
+      defaultAction: NetworkListenerAction.forward([targetGroup])
+    })
+
+    const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
+      vpc: vpc,
+      launchTemplate: launchTemplate,
+      minCapacity: context.capacity,
+      maxCapacity: 5,
+    });
+
+    autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+
+    const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: true,
-      networkLoadBalancerArns: [nlb.ref]
+      vpcEndpointServiceLoadBalancers: [loadBalancer]
     });
+
+    cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
+    cdk.Tags.of(vpceService).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'VpcEndpointServiceId', 
     { 
       description: "ID of the VPC Endpoint Service",
-      value: vpceService.ref
+      value: vpceService.vpcEndpointServiceId
     });
 
     new cdk.CfnOutput(this, 'VpcEndpointServiceName', 
     { 
       description: "Name of the VPC Endpoint Service",
-      value: `com.amazonaws.vpce.${this.region}.${vpceService.ref}`
+      value: vpceService.vpcEndpointServiceName,
+      exportName: `${id}-VpcEndpointServiceName`
     });
+  }
+
+  private renderMustache(filename: string, data: object): string
+  {
+    const mustache: string = path.resolve(__dirname, `templates/${filename}`);
+    const template: string = fs.readFileSync(mustache, 'utf8');
+    return Mustache.render(template, data);
   }
 }
