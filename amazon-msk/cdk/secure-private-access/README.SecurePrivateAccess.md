@@ -4,14 +4,13 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## Prerequisites
 
-1. Deploy [`SecurePrivateAccess`](README.md) stack via CDK
-2. Subscribe to [Zilla Plus for Amazon MSK].
-3. [Install Node.js].
-4. [Install AWS CDK].
-5. [Install AWS CLI].
-6. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
-7. Set your aws region: `aws configure set region us-east-1`
-8. Verify your region and credentials: `aws configure list`
+1. Subscribe to [Zilla Plus for Amazon MSK].
+2. [Install Node.js].
+3. [Install AWS CDK].
+4. [Install AWS CLI].
+5. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
+6. Set your aws region: `aws configure set region us-east-1`
+7. Verify your region and credentials: `aws configure list`
 
    ```text
          Name                    Value             Type    Location
@@ -22,7 +21,7 @@ This guide will help you gather the necessary AWS values required to configure a
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
 
-9. Verify that your MSK Serverless cluster Security Group allows inbound traffic on port `9098`.
+8. Verify that your MSK Serverless cluster Security Group allows inbound traffic on port `9098`.
 
 ## List the inbound rules for Security Group
 
