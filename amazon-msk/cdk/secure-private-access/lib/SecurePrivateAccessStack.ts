@@ -5,6 +5,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
 import Mustache = require("mustache");
 import fs =  require("fs");
+import * as path from 'path';
 import { LogGroup, LogStream } from 'aws-cdk-lib/aws-logs';
 import { validateRequiredKeys } from './validateRequiredKeys';
 import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
@@ -284,7 +285,8 @@ export class SecurePrivateAccessStack extends cdk.Stack {
           certificate: context.external.certificate
         }
       }
-      const acmYamlMustache: string = fs.readFileSync('acm.yaml.mustache', 'utf8');
+      const acmYamlPath: string = path.resolve(__dirname, 'templates/acm.yaml.mustache');
+      const acmYamlMustache: string = fs.readFileSync(acmYamlPath, 'utf8');
       const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
 
       userdataData.yaml = {
@@ -293,7 +295,8 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    const zillaYamlMustache: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
+    const zillaYamlPath: string = path.resolve(__dirname, 'templates/zilla.yaml.mustache');
+    const zillaYamlMustache: string = fs.readFileSync(zillaYamlPath, 'utf8');
     const zillaYaml: string = Mustache.render(zillaYamlMustache, zillaYamlData);
 
     userdataData.yaml = {
@@ -301,7 +304,8 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       zilla: zillaYaml
     }
 
-    const userdataMustache: string = fs.readFileSync('userdata.mustache', 'utf8');
+    const userdataPath: string = path.resolve(__dirname, 'templates/userdata.mustache');
+    const userdataMustache: string = fs.readFileSync(userdataPath, 'utf8');
     const userdata: string = Mustache.render(userdataMustache, userdataData);
 
     const machineImage = context.ami ?
