@@ -41,17 +41,11 @@ Set the VPC ID where Kafka clients are to be deployed via `cdk.context.json`, in
 
 Set the Subnet IDs where Kafka clients are to be deployed via `cdk.context.json`, in the `SecurePrivateAccessClient` `subnetIds` variable.
 
-### `wildcardDNS`: Zilla Plus Wildcard DNS
+### `server`: Custom domain bootstrap server
 
-Set the wildcard DNS pattern for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient` `wildcardDNS` variable.
+This variable defines the bootstrap server to be used by Kafka clients in the format `hostname:port`.
 
-### `port`: Zilla Plus Port
-
-> Default: `9098`
-
-This variable defines the port number to be used by Kafka clients.
-
-Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient`  `port` variable.
+Set the bootstrap server for Kafka clients via `cdk.context.json`, in the `SecurePrivateAccessClient` `server` variable.
 
 ### `vpceServiceName` Zilla Plus VPC Endpoint Service Name
 
