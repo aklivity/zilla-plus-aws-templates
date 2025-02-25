@@ -21,7 +21,7 @@ This guide will help you gather the necessary AWS values required to configure a
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
 
-## Configure stack
+## Configure the stack
 
 You can set these `context` variables via `cdk.context.json`, under `SecurePrivateAccessClient` object.
 
@@ -53,7 +53,7 @@ This variable defines the port number to be used by Kafka clients.
 
 Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient`  `port` variable.
 
-## Deploy stack
+## Deploy the stack via CDK
 
 ### Install Project Dependencies
 
