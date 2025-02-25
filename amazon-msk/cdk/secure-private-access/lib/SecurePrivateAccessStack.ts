@@ -285,9 +285,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
           certificate: context.external.certificate
         }
       }
-      const acmYamlPath: string = path.resolve(__dirname, 'templates/acm.yaml.mustache');
-      const acmYamlMustache: string = fs.readFileSync(acmYamlPath, 'utf8');
-      const acmYaml = Mustache.render(acmYamlMustache, acmYamlData);
+      const acmYaml = this.renderMustache('acm.yaml.mustache', acmYamlData);
 
       userdataData.yaml = {
         ...userdataData.yaml,
@@ -295,18 +293,17 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       }
     }
 
-    const zillaYamlPath: string = path.resolve(__dirname, 'templates/zilla.yaml.mustache');
-    const zillaYamlMustache: string = fs.readFileSync(zillaYamlPath, 'utf8');
-    const zillaYaml: string = Mustache.render(zillaYamlMustache, zillaYamlData);
+    const zillaYamlPath = path.resolve(__dirname, '../zilla.yaml');
+    const zillaYaml: string = fs.existsSync(zillaYamlPath)
+      ? fs.readFileSync(zillaYamlPath, 'utf-8')
+      : this.renderMustache('zilla.yaml.mustache', zillaYamlData);
 
     userdataData.yaml = {
       ...userdataData.yaml,
       zilla: zillaYaml
     }
 
-    const userdataPath: string = path.resolve(__dirname, 'templates/userdata.mustache');
-    const userdataMustache: string = fs.readFileSync(userdataPath, 'utf8');
-    const userdata: string = Mustache.render(userdataMustache, userdataData);
+    const userdata: string = this.renderMustache('userdata.mustache', userdataData);
 
     const machineImage = context.ami ?
       ec2.MachineImage.genericLinux({
@@ -383,5 +380,12 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       value: vpceService.vpcEndpointServiceName,
       exportName: `${id}-VpcEndpointServiceName`
     });
+  }
+
+  private renderMustache(filename: string, data: object): string
+  {
+    const mustache: string = path.resolve(__dirname, `templates/${filename}`);
+    const template: string = fs.readFileSync(mustache, 'utf8');
+    return Mustache.render(template, data);
   }
 }
