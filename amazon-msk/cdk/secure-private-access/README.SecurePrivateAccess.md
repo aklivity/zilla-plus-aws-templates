@@ -37,7 +37,7 @@ aws ec2 describe-security-groups \
 
 If the Security Groups do not allow inbound traffic on port `9098`, then make sure to allow that and re-verify.
 
-## Required CDK Context Variables
+## Configure stack
 
 You can set these `context` variables via `cdk.context.json`, under `SecurePrivateAccess` object.
 
@@ -263,7 +263,7 @@ aws ec2 describe-key-pairs \
 
 Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `sshKey` variable.
 
-## Deploy stack using CDK
+## Deploy stack
 
 ### Install Project Dependencies
 
@@ -278,7 +278,7 @@ npm install
 Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-cdk synth
+cdk synth SecurePrivateAccess
 ```
 
 This generates the cdk.out directory containing the synthesized CloudFormation template.

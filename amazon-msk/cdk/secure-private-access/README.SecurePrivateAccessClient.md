@@ -21,7 +21,7 @@ This guide will help you gather the necessary AWS values required to configure a
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
 
-## Required CDK Context Variables
+## Configure stack
 
 You can set these `context` variables via `cdk.context.json`, under `SecurePrivateAccessClient` object.
 
@@ -53,7 +53,7 @@ This variable defines the port number to be used by Kafka clients.
 
 Optionally override the default port for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccessClient`  `port` variable.
 
-## Deploy stack using CDK
+## Deploy stack
 
 ### Install Project Dependencies
 
@@ -68,7 +68,7 @@ npm install
 Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-cdk synth
+cdk synth SecurePrivateAccessClient
 ```
 
 This generates the cdk.out directory containing the synthesized CloudFormation template.
