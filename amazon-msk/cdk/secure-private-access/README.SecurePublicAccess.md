@@ -1,17 +1,16 @@
-# Deploy SecurePrivateAccess stack via CDK
+# Deploy SecurePublicAccess stack via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Private Access using CDK that allows Kafka Clients to reach a MSK Serverless cluster from an authorized VPC, even if the client VPC is owned by a different AWS account.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Public Access using CDK that allows Kafka Clients to reach a MSK Provisioned cluster from the Internet.
 
 ## Prerequisites
 
-1. Deploy [`MskServerlessCluster`](README.MskServerlessCluster.md) stack via CDK
-2. Subscribe to [Zilla Plus for Amazon MSK].
-3. [Install Node.js].
-4. [Install AWS CDK].
-5. [Install AWS CLI].
-6. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
-7. Set your aws region: `aws configure set region us-east-1`
-8. Verify your region and credentials: `aws configure list`
+1. Subscribe to [Zilla Plus for Amazon MSK].
+2. [Install Node.js].
+3. [Install AWS CDK].
+4. [Install AWS CLI].
+5. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
+6. Set your aws region: `aws configure set region us-east-1`
+7. Verify your region and credentials: `aws configure list`
 
    ```text
          Name                    Value             Type    Location
@@ -22,7 +21,7 @@ This guide will help you gather the necessary AWS values required to configure a
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
 
-9. Verify that your MSK Serverless cluster Security Group allows inbound traffic on port `9098`.
+8. Verify that your MSK Provisioned cluster Security Group allows inbound traffic on port range `9094-9098`.
 
 ## List the inbound rules for Security Group
 
@@ -36,93 +35,88 @@ aws ec2 describe-security-groups \
   --output json
 ```
 
-If the Security Groups do not allow inbound traffic on port `9098`, then make sure to allow that and re-verify.
+If the Security Groups do not allow inbound traffic on port range `9094-9098`, then make sure to allow that and re-verify.
 
 ## Configure the stack
 
-You can set these `context` variables via `cdk.context.json`, under `SecurePrivateAccess` object.
+You can set these `context` variables via `cdk.context.json`, under `SecurePublicAccess` object.
 
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n examples/cdk.context.SecurePrivateAccess.json cdk.context.json
+cp -n cdk.context.example.json cdk.context.json
 ```
-
-Otherwise copy the `SecurePrivateAccess` object into your existing `cdk.context.json` file.
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
 
 ### `vpcId`: VPC ID
 
-The VPC ID where the MSK Serverless cluster was created.
+The VPC ID where the MSK Provisioned cluster was created.
 
 ```bash
 aws ec2 describe-subnets \
-  --subnet-ids $(aws kafka list-clusters-v2 \
-      --cluster-type SERVERLESS \
-      --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[0]" \
-      --output text) \
+  --subnet-ids $(aws kafka describe-cluster \
+    --cluster-arn <msk-cluster-arn> \
+    --query "ClusterInfo.BrokerNodeGroupInfo.ClientSubnets[0]" \
+    --output text) \
   --query "Subnets[0].VpcId" \
   --output json
 ```
 
-Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `vpcId` variable.
+Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `vpcId` variable.
 
 #### `subnetIds`: Subnet IDs
 
-> Default: `PRIVATE_ISOLATED` subnets in VPC
-
-The subnet IDs of your deployed MSK Serverless cluster.
+The subnet IDs of your deployed MSK Provisioned cluster.
 
 ```bash
 aws kafka list-clusters-v2 \
-  --cluster-type SERVERLESS \
-  --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SubnetIds[]" \
+  --cluster-type PROVISIONED \
+  --query "ClusterInfoList[?ClusterArn=='<msk-cluster-arn>'].Provisioned.BrokerNodeGroupInfo.ClientSubnets[]" \
   --output json
 ```
 
-Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `subnetIds` variable.
+Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `subnetIds` variable.
 
-### `internal` MSK serverless variables
+### `internal` related variables
 
 ```json
     "internal":
     {
-      "server": "<your Amazon MSK Serverless bootstrap server>"
+      "servers": "<your Amazon MSK Provisioned bootstrap servers>"
     }
 ```
 
-#### `server`: MSK Serverless bootstrap server
+#### `servers`: MSK Provisioned bootstrap servers
 
 To get the bootstrap servers of the MSK Serverless Cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
-    --cluster-arn <msk-serverless-arn> \
-    --query 'BootstrapBrokerStringSaslIam' \
-    --output json
+    --cluster-arn <msk-cluster-arn> \
+    --output table
 ```
 
-Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `internal` `server` variable.
+Set one of the Bootstrap Servers on Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `internal` `servers` variable.
 
-### `external` Custom domain variables
+### `external` Zilla Plus variables
 
 ```json
     "external":
     {
-      "server": "<your custom domain bootstrap server>",
+      "servers": "<your custom domain bootstrap servers>",
       "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
 ```
 
-#### `server`: Custom domain bootstrap server
+#### `servers`: Custom domain bootstrap servers
 
 This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
 The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
 
-Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `server` variable.
+Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `servers` variable.
 
-#### `certificate`: Custom domain TLS Certificate ARN
+#### `certificate`: Zilla Plus TLS Certificate ARN
 
 You need the ARN of either the Certificate Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
 
@@ -135,7 +129,7 @@ aws acm list-certificates \
   --output table
 ```
 
-Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `certificate` variable.
+Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
@@ -147,7 +141,7 @@ aws secretsmanager list-secrets \
   --output table
 ```
 
-Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `certificate` variable.
+Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `certificate` variable.
 
 ### `capacity`: Zilla Plus EC2 Instances
 
@@ -155,7 +149,7 @@ Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.j
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `capacity` variable.
+Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `capacity` variable.
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -165,7 +159,7 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `instanceType` variable.
+Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `instanceType` variable.
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
@@ -181,7 +175,7 @@ aws iam list-roles \
   --output table
 ```
 
-Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `roleName` variable.
+Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `roleName` variable.
 
 ### `securityGroup`: Zilla Plus EC2 Instance Security Group
 
@@ -197,7 +191,7 @@ aws ec2 describe-security-groups \
   --output table
 ```
 
-Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `securityGroup` variable.
+Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `securityGroup` variable.
 
 ### `cloudwatch` Zilla Plus variables
 
@@ -230,7 +224,7 @@ aws logs describe-log-groups \
 
 This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
 
-Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `cloudwatch` `logs` `group` variable.
+Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `cloudwatch` `logs` `group` variable.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -242,7 +236,7 @@ aws cloudwatch list-metrics \
 | uniq
 ```
 
-Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `cloudwatch` `metrics` `namespace` variable.
+Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `cloudwatch` `metrics` `namespace` variable.
 
 ### Enable SSH Access
 
@@ -258,7 +252,7 @@ aws ec2 describe-key-pairs \
   --output table
 ```
 
-Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `sshKey` variable.
+Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `sshKey` variable.
 
 ## Deploy the stack via CDK
 
@@ -275,7 +269,7 @@ npm install
 Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-cdk synth SecurePrivateAccess
+cdk synth SecurePublicAccess
 ```
 
 This generates the cdk.out directory containing the synthesized CloudFormation template.
@@ -293,29 +287,46 @@ cdk bootstrap
 Deploy your resources to AWS:
 
 ```bash
-cdk deploy SecurePrivateAccess
+cdk deploy SecurePublicAccess
 ```
 
 Sample output:
 
 ```bash
 Outputs:
-SecurePrivateAccess.VpcEndpointServiceId = vpce-svc-1234567
-SecurePrivateAccess.VpcEndpointServiceName = com.amazonaws.vpce.<region>.vpce-svc-1234567
+SecurePublicAccess.CustomDnsWildcard = *.your.custom.domain
+SecurePublicAccess.LoadBalancerDnsName = <generated-hostname>.elb.<region>.amazonaws.com
 Stack ARN:
-arn:aws:cloudformation:<region>:<account_id>:stack/SecurePrivateAccess/<uuid>
+arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePublicAccess/<uuid>
 ```
 
-Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC Endpoint Service Name`, as you'll need these in the following steps when you add the `VPC Endpoint` from the client VPC.
+#### Configure Global DNS
 
-Deploy the [`SecurePrivateAccessClient`](README.SecurePrivateAccessClient.md) stack to connect to your MSK Serverless cluster from a different VPC.
+This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.your.custom.domain` then the DNS entries are setup in your DNS provider for `your.custom.domain`.
+
+Lookup the IP addresses of your load balancer using `nslookup` and the `SecurePublicAccess.LoadBalancerDnsName` stack output.
+
+```bash
+nslookup aws-generated-hostname.elb.us-east-1.amazonaws.com
+```
+
+For testing purposes you can edit your local `/etc/hosts` file instead of updating your DNS provider.
+
+```dns
+54.173.1.123  b-1.your.custom.domain b-2.your.custom.domain b-3.your.custom.domain
+54.173.1.456  b-1.your.custom.domain b-2.your.custom.domain b-3.your.custom.domain
+```
+
+In the example above, the Zilla Plus DNS name has 2 public IP addresses and 3 brokers in the MSK cluster.
+
+Now you can use any Kafka client to connect to your MSK Provisioned cluster via your custom domain, using Kafka bootstrap server  `bootstrap.your.custom.domain:9094` if connecting via TLS, `bootstrap.your.custom.domain:9096` if connecting via SASL SCRAM, or `bootstrap.your.custom.domain:9098` if connecting via IAM.
 
 ### Destroy the stack
 
-Destroy the `SecurePrivateAccess` stack when you no longer need it.
+Destroy the `SecurePublicAccess` stack when you no longer need it.
 
 ```bash
-cdk destroy SecurePrivateAccess
+cdk destroy SecurePublicAccess
 ```
 
 [ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html
