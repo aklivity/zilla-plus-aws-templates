@@ -18,17 +18,49 @@ interface TemplateData {
   external?: object;
 }
 
+interface SecurePrivateAccessInternalContext {
+  server: string
+}
+
+interface SecurePrivateAccessExternalContext {
+  server: string,
+  certificate: string
+}
+
+interface SecurePrivateAccessCloudWatchContext {
+  metrics?: SecurePrivateAccessCloudWatchMetricsContext,
+  logs?: SecurePrivateAccessCloudWatchLogsContext
+}
+
+interface SecurePrivateAccessCloudWatchMetricsContext {
+  namespace: string
+}
+
+interface SecurePrivateAccessCloudWatchLogsContext {
+  group: string,
+  stream?: string
+}
+
+interface SecurePrivateAccessContext {
+  vpcId: string,
+  subnetIds: Array<string>,
+  internal: SecurePrivateAccessInternalContext;
+  external: SecurePrivateAccessExternalContext;
+  cloudwatch?: SecurePrivateAccessCloudWatchContext,
+  securityGroup?: string,
+  roleName?: string,
+  capacity?: number,
+  instanceType?: string,
+  sshKey?: string,
+  ami?: string
+}
+
 export class SecurePrivateAccessStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.getContext(id);
-
-    // validate context
-    validateRequiredKeys(context, [ 'internal', 'external' ]);
-    validateRequiredKeys(context.internal, [ 'server' ]);
-    validateRequiredKeys(context.external, [ 'server', 'certificate' ]);
+    const context = this.node.getContext(id) as SecurePrivateAccessContext;
 
     // default context values
     context.vpcId ??= cdk.Fn.importValue("MskServerlessCluster-VpcId");
@@ -36,7 +68,9 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     // detect dependencies
     const nitroEnclavesEnabled: boolean = context.external.certificate.startsWith("arn:aws:acm");
     const secretsmanagerEnabled: boolean = context.external.certificate.startsWith("arn:aws:secretsmanager");
-    const cloudwatchEnabled: boolean = context?.cloudwatch?.logs?.group || context.cloudwatch?.metrics?.namespace;
+    const cloudwatchEnabled: boolean =
+      context.cloudwatch?.logs?.group !== undefined ||
+      context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
     context.capacity ??= 2;
