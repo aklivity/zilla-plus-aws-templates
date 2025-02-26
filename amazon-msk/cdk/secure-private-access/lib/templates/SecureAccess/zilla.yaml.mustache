@@ -49,6 +49,10 @@ bindings:
     options:
       keys:
         - {{{external.certificate}}}
+{{#external.trust}}
+      trust:
+        - {{{external.trust}}}
+{{/external.trust}}
     telemetry:
       metrics:
         - stream.*
@@ -77,8 +81,11 @@ bindings:
     type: tls
     kind: client
     vault: secure
+{{#internal.trust}}
     options:
-      trustcacerts: true
+      signers:
+        - {{{internal.trust}}}
+{{/internal.trust}}
     telemetry:
       metrics:
         - stream.*

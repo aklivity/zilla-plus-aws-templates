@@ -1,8 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as kms from 'aws-cdk-lib/aws-kms';
 import * as msk from 'aws-cdk-lib/aws-msk';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as kms from 'aws-cdk-lib/aws-kms';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
@@ -11,6 +11,11 @@ interface MskProvisionedClusterVpcContext {
 }
 
 interface MskProvisionedClusterSubnetsContext {
+  public: MskProvisionedClusterSubnetContext,
+  private: MskProvisionedClusterSubnetContext
+}
+
+interface MskProvisionedClusterSubnetContext {
   cidrMask: number
 }
 
@@ -40,16 +45,21 @@ export class MskProvisionedClusterStack extends cdk.Stack {
 
     // default context values
     context.vpc ??= { cidr: '10.0.0.0/16' };
-    context.subnets ??= { cidrMask: 24 };
+    context.subnets ??= { private: { cidrMask: 24 }, public: { cidrMask: 24 } };
     
     const vpc = new ec2.Vpc(this, 'ZillaPlus-MskVpc', {
       ipAddresses: ec2.IpAddresses.cidr(context.vpc.cidr),
       maxAzs: 2,
       subnetConfiguration: [
         {
-          cidrMask: context.subnets.cidrMask,
+          cidrMask: context.subnets?.private.cidrMask,
           name: 'ZillaPlus-MskPrivate',
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED
+        },
+        {
+          cidrMask: context.subnets?.public.cidrMask,
+          name: 'ZillaPlus-MskPublic',
+          subnetType: ec2.SubnetType.PUBLIC
         },
       ],
     });
@@ -113,10 +123,11 @@ export class MskProvisionedClusterStack extends cdk.Stack {
     const username = context.authentication?.sasl?.scram;
 
     if (username) {
-      const kmsKey = new kms.Key(this, 'ZillaPlus-MskKmsKey', {
+      const kmsKey = new kms.Key(this, 'MskKmsKey', {
         description: 'KMS key for MSK',
         enableKeyRotation: false,
         enabled: true,
+        removalPolicy: cdk.RemovalPolicy.DESTROY
       });
   
       kmsKey.addToResourcePolicy(
