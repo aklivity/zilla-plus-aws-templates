@@ -10,7 +10,12 @@ test('MskProvisionedCluster stack created', () => {
           "cidr": "10.4.0.0/16"
         },
         "subnets": {
-          "cidrMask": 24
+          "private": {
+            "cidrMask": 24
+          },
+          "public": {
+            "cidrMask": 24
+          }
         },
         "authentication": {
           "unauthenticated": true,
