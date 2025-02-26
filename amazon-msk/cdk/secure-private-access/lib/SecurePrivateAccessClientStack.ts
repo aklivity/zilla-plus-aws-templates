@@ -2,18 +2,21 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct, Node } from 'constructs';
-import { validateRequiredKeys } from './validateRequiredKeys';
 import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
+
+interface SecurePrivateAccessClientContext {
+  vpcId: string,
+  subnetIds: Array<string>,
+  server: string,
+  vpceServiceName?: string
+}
 
 export class SecurePrivateAccessClientStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.getContext(id);
-
-    // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'server' ]);
+    const context : SecurePrivateAccessClientContext = this.node.getContext(id);
 
     // default context values
     context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess-VpcEndpointServiceName");
