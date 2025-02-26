@@ -7,7 +7,6 @@ import Mustache = require("mustache");
 import fs =  require("fs");
 import * as path from 'path';
 import { LogGroup } from 'aws-cdk-lib/aws-logs';
-import { validateRequiredKeys } from './validateRequiredKeys';
 import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 
 interface TemplateData {
