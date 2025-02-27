@@ -13,7 +13,7 @@
       "msk":
       {
         "cluster": "<your MSK cluster name>",
-        "clientAuthentication": "<desired authentication method towards MSK>",
+        "clientAuthentication": "<desired authentication method towards MSK>"
       },
       "public":
       {
