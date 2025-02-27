@@ -78,7 +78,7 @@ aws kafka list-clusters-v2 \
 
 Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `subnetIds` variable.
 
-### `internal` related variables
+### `internal` MSK serverless variables
 
 ```json
     "internal":
@@ -100,7 +100,7 @@ aws kafka get-bootstrap-brokers \
 
 Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `internal` `server` variable.
 
-### `external` Zilla Plus variables
+### `external` Custom domain variables
 
 ```json
     "external":
@@ -117,7 +117,7 @@ The external bootstrap server name should match the custom domain wildcard DNS p
 
 Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `server` variable.
 
-#### `certificate`: Zilla Plus TLS Certificate ARN
+#### `certificate`: Custom domain TLS Certificate ARN
 
 You need the ARN of either the Certificate Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
 
