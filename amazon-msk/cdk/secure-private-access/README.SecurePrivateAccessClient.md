@@ -160,7 +160,7 @@ sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLo
 
 This verifies custom domain connectivity to your MSK Serverless cluster via Zilla Plus, from a different VPC.
 
-We can now verify that the Kafka client can successfully communicate with your MSK Serverless cluster from an EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
+We can now verify that the Kafka client successfully communicates with your MSK Serverless cluster from an EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
 
 If using the wildcard DNS pattern `*.example.aklivity.io`, then use the following server name for the Kafka client:
 
