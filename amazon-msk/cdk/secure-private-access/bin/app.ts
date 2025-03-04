@@ -23,4 +23,7 @@ if (app.node.tryGetContext('SecurePrivateAccess')) {
 if (app.node.tryGetContext('SecurePrivateAccessClient')) {
   new SecurePrivateAccessClientStack(app, 'SecurePrivateAccessClient', { env: env });
 }
-new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env });
+
+if (app.node.tryGetContext('SecurePublicAccess')) {
+  new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env });
+}
