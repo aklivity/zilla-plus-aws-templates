@@ -93,7 +93,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {};
 
-    /*
     endpoints = {
       ...endpoints,
       "ssm": ec2.InterfaceVpcEndpointAwsService.SSM,
@@ -127,7 +126,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
         "iam": ec2.InterfaceVpcEndpointAwsService.IAM
       }
     }
-    */
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({
