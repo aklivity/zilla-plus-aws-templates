@@ -95,7 +95,7 @@ Sample output:
 Outputs:
 SecurePrivateAccessClient.VpcEndpointId = vpce-7654321
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccessClient/<uuid>
+arn:aws:cloudformation:<region>:<account_id>:stack/SecurePrivateAccessClient/<uuid>
 ```
 
 Once your stack is deployed, note the `VPC Endpoint ID` as you'll need this to accept the VPC Endpoint connection.

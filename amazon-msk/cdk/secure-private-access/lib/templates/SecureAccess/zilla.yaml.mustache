@@ -1,7 +1,7 @@
 name: {{name}}
 vaults:
   secure:
-    type: {{#useAcm}}aws-acm{{/useAcm}}{{^useAcm}}aws-secrets{{/useAcm}}
+    type: {{vault}}
 telemetry:
   metrics:
     - stream.active.received
@@ -21,11 +21,15 @@ telemetry:
     aws0:
       type: aws-cloudwatch
       options:
+{{#cloudwatch.logs}}
         logs:
-          group: {{cloudwatch.logs.group}}
-          stream: events
+          group: {{{cloudwatch.logs.group}}}
+          stream: {{{cloudwatch.logs.stream}}}
+{{/cloudwatch.logs}}
+{{#cloudwatch.metrics}}
         metrics:
-          namespace: {{cloudwatch.metrics.namespace}}
+          namespace: {{{cloudwatch.metrics.namespace}}}
+{{/cloudwatch.metrics}}
 {{/cloudwatch}}
 bindings:
   tcp_server:
@@ -33,7 +37,7 @@ bindings:
     kind: server
     options:
       host: 0.0.0.0
-      port: {{public.port}}
+      port: {{external.port}}
     telemetry:
       metrics:
         - stream.*
@@ -44,31 +48,31 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{{public.certificate}}}
-      {{#mTLS}}
+        - {{{external.certificate}}}
+{{#external.trust}}
       trust:
-        - {{{public.certificateAuthority}}}
-      {{/mTLS}}
+        - {{{external.trust}}}
+{{/external.trust}}
     telemetry:
       metrics:
         - stream.*
     routes:
       - exit: kafka_proxy
         when:
-          - authority: '{{public.wildcardDNS}}'
+          - authority: '{{external.authority}}'
   kafka_proxy:
     type: kafka-proxy
     kind: proxy
     options:
       external:
-        host: '{{externalHost}}'
-        port: {{public.port}}
+        host: '{{external.host}}'
+        port: {{external.port}}
       internal:
-        host: '{{internalHost}}'
-        {{#defaultInternalHost}}
-        default: '{{defaultInternalHost}}'
-        {{/defaultInternalHost}}
-        port: {{msk.port}}
+        host: '{{internal.host}}'
+        port: {{internal.port}}
+{{#internal.defaultHost}}
+        default: '{{internal.defaultHost}}'
+{{/internal.defaultHost}}
     telemetry:
       metrics:
         - stream.*
@@ -77,12 +81,11 @@ bindings:
     type: tls
     kind: client
     vault: secure
+{{#internal.trust}}
     options:
-      {{#mTLS}}
       signers:
-        - {{{msk.certificateAuthority}}}
-      {{/mTLS}}
-      trustcacerts: true
+        - {{{internal.trust}}}
+{{/internal.trust}}
     telemetry:
       metrics:
         - stream.*
@@ -92,11 +95,11 @@ bindings:
     kind: client
     options:
       host: '*'
-      port: {{msk.port}}
+      port: {{internal.port}}
     telemetry:
       metrics:
         - stream.*
     routes:
       - when:
-        - authority: '{{msk.wildcardDNS}}'
+        - authority: '{{internal.authority}}'
 
