@@ -1,0 +1,17 @@
+{
+  "SecurePublicAccess":
+  {
+    "vpcId": "<your Amazon MSK Provisioned VPC ID>",
+    "subnetIds": [
+      "<your Amazon MSK Provisioned subnetId-1>, defaults to VPC public subnetIds",
+      "<your Amazon MSK Provisioned subnetId-2>, defaults to VPC public subnetIds"
+    ],
+    "internal": {
+      "servers": "<your Amazon MSK Provisioned bootstrap servers>"
+    },
+    "external": {
+      "servers": "<your custom domain bootstrap servers>",
+      "certificate": "<your custom domain wildcard tls certificate key ARN>"
+    }
+  }
+}

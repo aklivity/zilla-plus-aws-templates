@@ -1,0 +1,23 @@
+{
+  "MskProvisionedCluster":
+  {
+    "vpc": {
+      "cidr": "10.0.0.0/16"
+    },
+    "subnets": {
+      "private": {
+        "cidrMask": 24
+      },
+      "public": {
+        "cidrMask": 24
+      }
+    },
+    "authentication": {
+      "unauthenticated": true,
+      "sasl": {
+        "iam": true,
+        "scram": "bob"
+      }
+    }
+  }
+}

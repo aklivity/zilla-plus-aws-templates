@@ -44,7 +44,7 @@ You can set these `context` variables via `cdk.context.json`, under `SecurePubli
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n cdk.context.example.json cdk.context.json
+cp -n examples/cdk.context.SecurePublicAccess.json cdk.context.json
 ```
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
