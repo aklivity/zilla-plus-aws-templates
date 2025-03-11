@@ -197,6 +197,10 @@ Go to the `kafka_2.12-2.8.1/bin` directory and use the Kafka client to create a 
     --bootstrap-server boot.example.aklivity.io:9098
 ```
 
+```text
+Created topic zilla-plus-test.
+```
+
 #### Produce and consume messages
 
 Now you can produce and consume messages from the `zilla-plus-test` topic remotely from your client VPC, updating `boot.example.aklivity.io:9098` in the commands below to use your MSK Serverless cluster custom domain.
@@ -208,12 +212,21 @@ Now you can produce and consume messages from the `zilla-plus-test` topic remote
     --topic zilla-plus-test
 ```
 
+```text
+>Hello, world!
+>
+```
+
 ```bash
 ./kafka-console-consumer.sh \
     --consumer.config client.properties \
     --bootstrap-server boot.example.aklivity.io:9098 \
     --topic zilla-plus-test \
     --from-beginning
+```
+
+```test
+Hello, world!
 ```
 
 ### Reaching MSK Serverless from a different region
