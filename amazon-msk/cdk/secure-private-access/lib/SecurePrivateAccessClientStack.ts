@@ -13,7 +13,7 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'server' ]);
+    validateRequiredKeys(context, [ 'vpcId', 'server' ]);
 
     // default context values
     context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess-VpcEndpointServiceName");
@@ -21,7 +21,13 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     const [server, port] = context.server.split(',')[0].split(':');
 
     const vpc = ec2.Vpc.fromLookup(this, 'ClientVpc', { vpcId: context.vpcId });
-    const subnets = vpc.selectSubnets({ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] });
+    const subnets = vpc.selectSubnets({
+      subnetFilters: [
+        context.subnetIds
+          ? ec2.SubnetFilter.byIds(context.subnetIds)
+          : ec2.SubnetFilter.onePerAz()
+      ]
+    });
 
     const securityGroup = new ec2.SecurityGroup(this, 'Client-VpcEndpoint-SecurityGroup', {
       description: `Client VPC Endpoint Security Group`,

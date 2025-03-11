@@ -26,9 +26,12 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     const context = this.node.getContext(id);
 
     // validate context
-    validateRequiredKeys(context, [ 'vpcId', 'subnetIds', 'internal', 'external' ]);
+    validateRequiredKeys(context, [ 'internal', 'external' ]);
     validateRequiredKeys(context.internal, [ 'server' ]);
     validateRequiredKeys(context.external, [ 'server', 'certificate' ]);
+
+    // default context values
+    context.vpcId ??= cdk.Fn.importValue("MskServerlessCluster-VpcId");
 
     // detect dependencies
     const nitroEnclavesEnabled: boolean = context.external.certificate.startsWith("arn:aws:acm");
@@ -53,41 +56,15 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       external: {}
     };
 
-    let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {
-      "ssm": ec2.InterfaceVpcEndpointAwsService.SSM,
-      "cloudformation": ec2.InterfaceVpcEndpointAwsService.CLOUDFORMATION,
-      "ssm_messages": ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
-      "ec2_messages": ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
-    };
-    
-    if (secretsmanagerEnabled) {
-      endpoints = {
-        ...endpoints,
-        "secretsmanager": ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
-      };
-    }
-
-    if (cloudwatchEnabled)
-    {
-      endpoints = {
-        ...endpoints,
-        "monitoring": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING,
-        "cloudwatch": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
-      };
-    }
-
-    if (nitroEnclavesEnabled) {
-      endpoints = {
-        ...endpoints,
-        "acm-pca": ec2.InterfaceVpcEndpointAwsService.PRIVATE_CERTIFICATE_AUTHORITY,
-        "kms": ec2.InterfaceVpcEndpointAwsService.KMS,
-        "s3": ec2.InterfaceVpcEndpointAwsService.S3,
-        "iam": ec2.InterfaceVpcEndpointAwsService.IAM
-      }
-    }
-
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
-    const subnets = vpc.selectSubnets();
+    const subnets = vpc.selectSubnets({
+      subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+      subnetFilters: [
+        context.subnetIds
+          ? ec2.SubnetFilter.byIds(context.subnetIds)
+          : ec2.SubnetFilter.onePerAz()
+      ]
+    });
     if (subnets.isPendingLookup) {
       return;
     }
@@ -100,7 +77,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     }
     else {
       securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
-        securityGroupName: `zilla-plus-${id}`,
+        securityGroupName: `ZillaPlus-${id}`,
         description: `Zilla Plus Security Group`,
         vpc: vpc,
       });
@@ -111,29 +88,11 @@ export class SecurePrivateAccessStack extends cdk.Stack {
         'Allow inbound traffic on Kafka IAM port');
     }
 
-    for (const serviceName in endpoints) {
-      if (endpoints.hasOwnProperty(serviceName)) {
-        if (serviceName == "s3") {
-          vpc.addGatewayEndpoint("Endpoint-s3-gateway", {
-            service: ec2.GatewayVpcEndpointAwsService.S3,
-            subnets: [{ subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] }],
-          });
-        }
-
-        const service = endpoints[serviceName as keyof typeof endpoints];
-        vpc.addInterfaceEndpoint(`Endpoint-${serviceName}`, {
-          service: service,
-          subnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
-          securityGroups: [securityGroup]
-        });
-      }
-    }
-
     let role;
 
     if (!context.roleName) {
       role = new iam.Role(this, `ZillaPlus-Role`, {
-        roleName: `zilla-plus-${id}`,
+        roleName: `ZillaPlus-${id}`,
         assumedBy: new iam.CompositePrincipal(
           new iam.ServicePrincipal('ec2.amazonaws.com'),
           new iam.ServicePrincipal('cloudformation.amazonaws.com')
@@ -333,7 +292,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       internetFacing: false,
       ipAddressType: IpAddressType.IPV4,
       vpc: vpc,
-      vpcSubnets: { subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)] },
+      vpcSubnets: subnets,
       // securityGroups: [securityGroup],
       // enforceSecurityGroupInboundRulesOnPrivateLinkTraffic: false
     });

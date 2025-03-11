@@ -3,8 +3,8 @@
   {
     "vpcId": "<your Amazon MSK Serverless VPC ID>",
     "subnetIds": [
-      "<your Amazon MSK Serverless subnetId-1>",
-      "<your Amazon MSK Serverless subnetId-2>"
+      "<your Amazon MSK Serverless subnetId-1>, defaults to VPC private subnetIds",
+      "<your Amazon MSK Serverless subnetId-2>, defaults to VPC private subnetIds"
     ],
     "internal": {
       "server": "<your Amazon MSK Serverless bootstrap server>"
@@ -13,13 +13,5 @@
       "server": "<your custom domain bootstrap server>",
       "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
-  },
-  "SecurePrivateAccessClient":
-  {
-    "vpcId": "<your remote client VPC ID>",
-    "subnetIds": [
-      "<your remote client subnetId-1>"
-    ],
-    "server": "<your custom domain bootstrap server>"
   }
 }

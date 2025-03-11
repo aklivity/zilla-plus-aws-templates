@@ -28,8 +28,10 @@ You can set these `context` variables via `cdk.context.json`, under `SecurePriva
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n cdk.context.example.json cdk.context.json
+cp -n examples/cdk.context.SecurePrivateAccessClient.json cdk.context.json
 ```
+
+Otherwise copy the `SecurePrivateAccessClient` object into your existing `cdk.context.json` file.
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
 
@@ -95,7 +97,7 @@ Sample output:
 Outputs:
 SecurePrivateAccessClient.VpcEndpointId = vpce-7654321
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccessClient/<uuid>
+arn:aws:cloudformation:<region>:<account_id>:stack/SecurePrivateAccessClient/<uuid>
 ```
 
 Once your stack is deployed, note the `VPC Endpoint ID` as you'll need this to accept the VPC Endpoint connection.
@@ -113,33 +115,27 @@ The `VPC Endpoint ID` can be obtained from the `SecurePrivateAccessClient` stack
 
 ### Create IAM Role for MSK Serverless
 
-Follow the AWS guide to [Create an IAM role for topics on MSK Serverless cluster] to grants access to certain Kafka operations.
+If you created your MSK Serverless cluster using the [`MskServerlessCluster`](README.MskServerlessCluster.md) stack, then the IAM Role for MSK Serverless has already been created, and is included in the `MskServerlessCluster` stack output.
 
-You can use the created role in the next step for client machine that assumes this role and uses it.
+Otherwise, follow the AWS guide to [Create an IAM role for topics on MSK Serverless cluster] to grants access to certain Kafka operations.
 
 ### Launch Client EC2 Instance in different VPC and Install the Kafka Client
 
-Follow the AWS guide to [Create a client machine to access MSK Serverless cluster] to be able to connect from your Kafka client running in a different VPC.
+Follow the AWS guide to [Create a client machine to access MSK Serverless cluster] to be able to connect from your Kafka client running in a different VPC, launching with the IAM role from the previous section.
 
-This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". Now that you deployed Zilla Plus, you can provide the client VPC where you configured the VPC Endpoint instead.
-
-Make sure to download one of the latest versions of `aws-msk-iam-auth` jar file if you want to use `OAUTHBEARER` authentication mechanism, as that's not included in `v1.1.1`
-
-For example:
-
-```bash
-wget https://github.com/aws/aws-msk-iam-auth/releases/download/v2.2.0/aws-msk-iam-auth-2.2.0-all.jar
-```
+This documentation mentions that "under VPC, enter the ID of the virtual private cloud (VPC) for your serverless cluster". You should provide the client VPC where you deployed the `SecurePrivateAccessClient` stack instead.
 
 ### Configure the Kafka Client
 
 With the Kafka client now installed, we are ready to configure IAM authorization.
 
+Go to the `kafka_2.12-2.8.1/bin` directory and create the `client.properties` file.
+
 You can either choose to use `AWS_MSK_IAM` or `OAUTHBEARER`.
 
 #### client.properties for `AWS_MSK_IAM`
 
-```text
+```properties
 security.protocol=SASL_SSL
 sasl.mechanism=AWS_MSK_IAM
 sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;
@@ -148,7 +144,7 @@ sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbac
 
 #### client.properties for `OAUTHBEARER`
 
-```text
+```properties
 security.protocol=SASL_SSL
 sasl.mechanism=OAUTHBEARER
 sasl.jaas.config=org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;
@@ -156,11 +152,27 @@ sasl.login.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLog
 sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMOAuthBearerLoginCallbackHandler
 ```
 
-### Test the Kafka Client
+Note: if you used AWS Certificate Manager Private Certificate Authority to generate your custom domain certificate, then you will need to also configure the Kafka client to trust your Private CA.
+
+First copy the Private CA certificate to a file called `ca.pem` in the `kafka_2.12-2.8.1/bin` directory.
+
+Then import the Private CA certificate into a Java Keystore.
+
+```bash
+keytool -import -alias testca -keystore truststore.p12 -storepass generated -file ca.pem -noprompt
+```
+
+Then add the extra lines of configuration to `client.properties`.
+
+```properties
+...
+ssl.truststore.location=/home/ec2-user/kafka_2.12-2.8.1/bin/truststore.p12
+ssl.truststore.password=generated
+```
+
+### Test the Kafka client
 
 This verifies custom domain connectivity to your MSK Serverless cluster via Zilla Plus, from a different VPC.
-
-We can now verify that the Kafka client successfully communicates with your MSK Serverless cluster from an EC2 instance running in a different VPC to create a topic, then produce and subscribe to the same topic.
 
 If using the wildcard DNS pattern `*.example.aklivity.io`, then use the following server name for the Kafka client:
 
@@ -168,14 +180,14 @@ If using the wildcard DNS pattern `*.example.aklivity.io`, then use the followin
 boot.example.aklivity.io:9098
 ```
 
-Note: Replace these bootstrap server names accordingly for your own custom wildcard DNS pattern.
+Note: Replace this bootstrap server name accordingly for your own custom wildcard DNS pattern.
 
-#### Create a Topic
+#### Create a topic
 
-Use the Kafka client to create a topic called `zilla-plus-test`, updating `boot.example.aklivity.io:9098` in the command below to use your Zilla Plus custom domain:
+Go to the `kafka_2.12-2.8.1/bin` directory and use the Kafka client to create a topic called `zilla-plus-test`, updating `boot.example.aklivity.io:9098` in the command below to use your MSK Serverless cluster custom domain.
 
 ```bash
-bin/kafka-topics.sh --create \
+./kafka-topics.sh --create \
     --topic zilla-plus-test \
     --partitions 3 \
     --replication-factor 2 \
@@ -183,7 +195,23 @@ bin/kafka-topics.sh --create \
     --bootstrap-server boot.example.aklivity.io:9098
 ```
 
-Now you can produce and subscribe to the `zilla-plus-test` topic in your MSK Serverless cluster from your client VPC.
+#### Produce and consume messages
+
+Now you can produce and consume messages from the `zilla-plus-test` topic remotely from your client VPC, updating `boot.example.aklivity.io:9098` in the commands below to use your MSK Serverless cluster custom domain.
+
+```bash
+./kafka-console-producer.sh \
+    --producer.config client.properties \
+    --bootstrap-server boot.example.aklivity.io:9098 \
+    --topic zilla-plus-test
+```
+
+```bash
+./kafka-console-consumer.sh \
+    --consumer.config client.properties \
+    --bootstrap-server boot.example.aklivity.io:9098 \
+    --topic zilla-plus-test
+```
 
 ### Reaching MSK Serverless from a different region
 

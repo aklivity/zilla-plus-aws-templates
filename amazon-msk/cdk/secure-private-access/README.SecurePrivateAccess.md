@@ -44,8 +44,10 @@ You can set these `context` variables via `cdk.context.json`, under `SecurePriva
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n cdk.context.example.json cdk.context.json
+cp -n examples/cdk.context.SecurePrivateAccess.json cdk.context.json
 ```
+
+Otherwise copy the `SecurePrivateAccess` object into your existing `cdk.context.json` file.
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
 
@@ -298,7 +300,7 @@ Outputs:
 SecurePrivateAccess.VpcEndpointServiceId = vpce-svc-1234567
 SecurePrivateAccess.VpcEndpointServiceName = com.amazonaws.vpce.<region>.vpce-svc-1234567
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePrivateAccess/<uuid>
+arn:aws:cloudformation:<region>:<account_id>:stack/SecurePrivateAccess/<uuid>
 ```
 
 Once your stack is deployed, note the `VPC Endpoint Service Id` and the `VPC Endpoint Service Name`, as you'll need these in the following steps when you add the `VPC Endpoint` from the client VPC.
