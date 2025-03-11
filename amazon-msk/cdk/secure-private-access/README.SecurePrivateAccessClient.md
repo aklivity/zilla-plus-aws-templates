@@ -212,7 +212,8 @@ Now you can produce and consume messages from the `zilla-plus-test` topic remote
 ./kafka-console-consumer.sh \
     --consumer.config client.properties \
     --bootstrap-server boot.example.aklivity.io:9098 \
-    --topic zilla-plus-test
+    --topic zilla-plus-test \
+    --from-beginning
 ```
 
 ### Reaching MSK Serverless from a different region
