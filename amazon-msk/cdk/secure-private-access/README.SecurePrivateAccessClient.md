@@ -4,7 +4,7 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## Prerequisites
 
-1. Deploy [`SecurePrivateAccess`](README.md) stack via CDK
+1. Deploy [`SecurePrivateAccess`](README.SecurePrivateAccess.md) stack via CDK
 2. [Install Node.js].
 3. [Install AWS CDK].
 4. [Install AWS CLI].
@@ -40,6 +40,8 @@ Then, further modify `cdk.context.json` based on the context variable descriptio
 Set the VPC ID where Kafka clients are to be deployed via `cdk.context.json`, in the `SecurePrivateAccessClient` `vpcId` variable.
 
 ### `subnetIds`: Subnets of your deployed Kafka clients
+
+> Default: 1 subnet per Availability Zone
 
 Set the Subnet IDs where Kafka clients are to be deployed via `cdk.context.json`, in the `SecurePrivateAccessClient` `subnetIds` variable.
 
