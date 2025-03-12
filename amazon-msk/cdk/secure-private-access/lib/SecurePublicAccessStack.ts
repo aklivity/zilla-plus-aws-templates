@@ -91,46 +91,14 @@ export class SecurePublicAccessStack extends cdk.Stack {
       external: {}
     };
 
-    let endpoints: Record<string, ec2.InterfaceVpcEndpointAwsService> = {};
-
-    endpoints = {
-      ...endpoints,
-      "ssm": ec2.InterfaceVpcEndpointAwsService.SSM,
-      "cloudformation": ec2.InterfaceVpcEndpointAwsService.CLOUDFORMATION,
-      "ssm_messages": ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
-      "ec2_messages": ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
-    };
-    
-    if (secretsmanagerEnabled) {
-      endpoints = {
-        ...endpoints,
-        "secretsmanager": ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
-      };
-    }
-
-    if (cloudwatchEnabled)
-    {
-      endpoints = {
-        ...endpoints,
-        "monitoring": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING,
-        "cloudwatch": ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
-      };
-    }
-
-    if (nitroEnclavesEnabled) {
-      endpoints = {
-        ...endpoints,
-        "acm-pca": ec2.InterfaceVpcEndpointAwsService.PRIVATE_CERTIFICATE_AUTHORITY,
-        "kms": ec2.InterfaceVpcEndpointAwsService.KMS,
-        "s3": ec2.InterfaceVpcEndpointAwsService.S3,
-        "iam": ec2.InterfaceVpcEndpointAwsService.IAM
-      }
-    }
-
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({
       subnetType: ec2.SubnetType.PUBLIC, 
-      subnetFilters: [ec2.SubnetFilter.byIds(context.subnetIds)]
+      subnetFilters: [
+        context.subnetIds
+          ? ec2.SubnetFilter.byIds(context.subnetIds)
+          : ec2.SubnetFilter.onePerAz()
+      ]
     });
 
     if (subnets.isPendingLookup) {
@@ -153,25 +121,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
         ec2.Port.tcp(Number(externalPort)),
-        'Allow inbound traffic on Kafka IAM port');
-    }
-
-    for (const serviceName in endpoints) {
-      if (endpoints.hasOwnProperty(serviceName)) {
-        if (serviceName == "s3") {
-          vpc.addGatewayEndpoint("Endpoint-s3-gateway", {
-            service: ec2.GatewayVpcEndpointAwsService.S3,
-            subnets: [subnets],
-          });
-        }
-
-        const service = endpoints[serviceName as keyof typeof endpoints];
-        vpc.addInterfaceEndpoint(`Endpoint-${serviceName}`, {
-          service: service,
-          subnets: subnets,
-          securityGroups: [securityGroup]
-        });
-      }
+        'Allow inbound traffic on external port');
     }
 
     let role;
@@ -179,20 +129,16 @@ export class SecurePublicAccessStack extends cdk.Stack {
     if (!context.roleName) {
       role = new iam.Role(this, `ZillaPlus-Role`, {
         roleName: `zilla-plus-${id}`,
-        assumedBy: new iam.CompositePrincipal(
-          new iam.ServicePrincipal('ec2.amazonaws.com'),
-          new iam.ServicePrincipal('cloudformation.amazonaws.com')
-        ),
+        assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
         managedPolicies: [
           iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCertificateManagerReadOnly'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLogsFullAccess'),
         ],
         inlinePolicies: {
-          CCProxySecretsManagerRead: new iam.PolicyDocument({
+          ZillaPlusSecretsManagerRead: new iam.PolicyDocument({
             statements: [
               new iam.PolicyStatement({
-                sid: 'VisualEditor0',
                 effect: iam.Effect.ALLOW,
                 actions: [
                   'acm-pca:GetCertificate',
@@ -214,7 +160,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
       const iamPolicy = new iam.PolicyDocument({
         statements: [
           new iam.PolicyStatement({
-            sid: 'secretStatement',
             effect: iam.Effect.ALLOW,
             actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
             resources: ['arn:aws:secretsmanager:*:*:secret:*'],
@@ -225,7 +170,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
       if (cloudwatchEnabled) {
         iamPolicy.addStatements(
           new iam.PolicyStatement({
-            sid: 'cloudwatchStatement',
             effect: iam.Effect.ALLOW,
             actions: ['logs:*', 'cloudwatch:GenerateQuery', 'cloudwatch:PutMetricData'],
             resources: ['*'],
@@ -240,19 +184,16 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
         iamPolicy.addStatements(
           new iam.PolicyStatement({
-            sid: 's3Statement',
             effect: iam.Effect.ALLOW,
             actions: ['s3:GetObject'],
             resources: [`arn:aws:s3:::${association.attrCertificateS3BucketName}/*`],
           }),
           new iam.PolicyStatement({
-            sid: 'kmsDecryptStatement',
             effect: iam.Effect.ALLOW,
             actions: ['kms:Decrypt'],
             resources: [`arn:aws:kms:${this.region}:*:key/${association.attrEncryptionKmsKeyId}`],
           }),
           new iam.PolicyStatement({
-            sid: 'getRoleStatement',
             effect: iam.Effect.ALLOW,
             actions: ['iam:GetRole'],
             resources: [`*`],

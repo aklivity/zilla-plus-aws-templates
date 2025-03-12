@@ -116,7 +116,7 @@ export class MskProvisionedClusterStack extends cdk.Stack {
       },
     });
 
-    const mskIamRole = new iam.Role(this, 'ZillaPlus-MskIamRole', {
+    const role = new iam.Role(this, 'ZillaPlus-MskIamRole', {
       assumedBy: new iam.ServicePrincipal('kafka.amazonaws.com'),
     });
 
@@ -151,7 +151,7 @@ export class MskProvisionedClusterStack extends cdk.Stack {
         ),
       });
 
-      secret.grantRead(mskIamRole);
+      secret.grantRead(role);
 
       new msk.CfnBatchScramSecret(this, 'ZillaPlus-MskBatchScramSecret', {
         clusterArn: mskCluster.attrArn,
@@ -163,12 +163,12 @@ export class MskProvisionedClusterStack extends cdk.Stack {
       value: mskCluster.ref,
     });
 
-    new cdk.CfnOutput(this, 'VpcId', {
-      value: vpc.vpcId,
+    new cdk.CfnOutput(this, 'RoleArn', {
+      value: role.roleArn,
     });
 
-    new cdk.CfnOutput(this, 'SubnetIds', {
-      value: JSON.stringify(vpc.isolatedSubnets.map(subnet => subnet.subnetId)),
+    new cdk.CfnOutput(this, 'VpcId', {
+      value: vpc.vpcId,
     });
   }
 }

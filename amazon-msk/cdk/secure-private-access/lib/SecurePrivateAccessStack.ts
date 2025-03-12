@@ -119,7 +119,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
         ec2.Port.tcp(Number(externalPort)),
-        'Allow inbound traffic on Kafka IAM port');
+        'Allow inbound traffic on external port');
     }
 
     let role;
@@ -127,20 +127,16 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     if (!context.roleName) {
       role = new iam.Role(this, `ZillaPlus-Role`, {
         roleName: `ZillaPlus-${id}`,
-        assumedBy: new iam.CompositePrincipal(
-          new iam.ServicePrincipal('ec2.amazonaws.com'),
-          new iam.ServicePrincipal('cloudformation.amazonaws.com')
-        ),
+        assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
         managedPolicies: [
           iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCertificateManagerReadOnly'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLogsFullAccess'),
         ],
         inlinePolicies: {
-          CCProxySecretsManagerRead: new iam.PolicyDocument({
+          ZillaPlusSecretsManagerRead: new iam.PolicyDocument({
             statements: [
               new iam.PolicyStatement({
-                sid: 'VisualEditor0',
                 effect: iam.Effect.ALLOW,
                 actions: [
                   'acm-pca:GetCertificate',
@@ -162,7 +158,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       const iamPolicy = new iam.PolicyDocument({
         statements: [
           new iam.PolicyStatement({
-            sid: 'secretStatement',
             effect: iam.Effect.ALLOW,
             actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
             resources: ['arn:aws:secretsmanager:*:*:secret:*'],
@@ -173,7 +168,6 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       if (cloudwatchEnabled) {
         iamPolicy.addStatements(
           new iam.PolicyStatement({
-            sid: 'cloudwatchStatement',
             effect: iam.Effect.ALLOW,
             actions: ['logs:*', 'cloudwatch:GenerateQuery', 'cloudwatch:PutMetricData'],
             resources: ['*'],
@@ -188,19 +182,16 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
         iamPolicy.addStatements(
           new iam.PolicyStatement({
-            sid: 's3Statement',
             effect: iam.Effect.ALLOW,
             actions: ['s3:GetObject'],
             resources: [`arn:aws:s3:::${association.attrCertificateS3BucketName}/*`],
           }),
           new iam.PolicyStatement({
-            sid: 'kmsDecryptStatement',
             effect: iam.Effect.ALLOW,
             actions: ['kms:Decrypt'],
             resources: [`arn:aws:kms:${this.region}:*:key/${association.attrEncryptionKmsKeyId}`],
           }),
           new iam.PolicyStatement({
-            sid: 'getRoleStatement',
             effect: iam.Effect.ALLOW,
             actions: ['iam:GetRole'],
             resources: [`*`],
