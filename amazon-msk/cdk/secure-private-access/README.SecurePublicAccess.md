@@ -28,8 +28,8 @@ This guide will help you gather the necessary AWS values required to configure a
 ```bash
 aws ec2 describe-security-groups \
   --group-ids $(aws kafka list-clusters-v2 \
-    --cluster-type SERVERLESS \
-    --query "ClusterInfoList[?ClusterArn=='<msk-serverless-arn>'].Serverless.VpcConfigs[].SecurityGroupIds[]" \
+    --cluster-type PROVISIONED \
+    --query "ClusterInfoList[?ClusterArn=='<msk-provisioned-arn>'].Provisioned.BrokerNodeGroupInfo.SecurityGroups[]" \
     --output text) \
   --query "SecurityGroups[].IpPermissions" \
   --output json
@@ -67,7 +67,9 @@ Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePublicAcce
 
 #### `subnetIds`: Subnet IDs
 
-The subnet IDs of your deployed MSK Provisioned cluster.
+The subnet IDs for your Zilla Plus deployment, network reachable to your MSK Provisioned cluster.
+
+> Default: `PUBLIC` subnets in VPC
 
 ```bash
 aws kafka list-clusters-v2 \
@@ -113,6 +115,7 @@ Set one of the Bootstrap Servers on Zilla Plus via `cdk.context.json`, in the `S
 
 This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
 The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
+The external bootstrap server port should match the internal bootstrap server port.
 
 Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `servers` variable.
 
@@ -142,6 +145,25 @@ aws secretsmanager list-secrets \
 ```
 
 Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `certificate` variable.
+
+If using AWS Secrets Manager to store the TLS certificate, the secret value should contain a private key and full certificate chain in text-based PEM format.
+
+For example, the secret value would be of the form:
+
+```text
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+```
 
 ### `capacity`: Zilla Plus EC2 Instances
 

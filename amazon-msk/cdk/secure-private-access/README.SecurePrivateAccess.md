@@ -72,7 +72,7 @@ Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAcc
 
 > Default: `PRIVATE_ISOLATED` subnets in VPC
 
-The subnet IDs of your deployed MSK Serverless cluster.
+The subnet IDs for your Zilla Plus deployment, network reachable to your MSK Serverless cluster.
 
 ```bash
 aws kafka list-clusters-v2 \
@@ -119,6 +119,7 @@ Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `Se
 
 This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
 The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
+The external bootstrap server port should match the internal bootstrap server port.
 
 Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `server` variable.
 
@@ -148,6 +149,25 @@ aws secretsmanager list-secrets \
 ```
 
 Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `certificate` variable.
+
+If using AWS Secrets Manager to store the TLS certificate, the secret value should contain a private key and full certificate chain in text-based PEM format.
+
+For example, the secret value would be of the form:
+
+```text
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----
+```
 
 ### `capacity`: Zilla Plus EC2 Instances
 
