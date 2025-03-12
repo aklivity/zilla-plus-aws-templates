@@ -4,7 +4,8 @@ This guide will help you gather the necessary AWS values required to configure a
 
 ## Prerequisites
 
-1. Subscribe to [Zilla Plus for Amazon MSK].
+1. Deploy [`MskProvisionedCluster`](README.MskProvisionedCluster.md) stack via CDK
+2. Subscribe to [Zilla Plus for Amazon MSK].
 2. [Install Node.js].
 3. [Install AWS CDK].
 4. [Install AWS CLI].
