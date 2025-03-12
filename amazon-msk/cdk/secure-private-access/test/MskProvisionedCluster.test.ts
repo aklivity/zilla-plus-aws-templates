@@ -1,31 +1,53 @@
 import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-import * as ExampleCluster from '../lib/example-cluster-stack';
 import { Template } from 'aws-cdk-lib/assertions';
+import { MskProvisionedClusterStack } from '../lib/MskProvisionedClusterStack';
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/example-cluster-stack.ts
-test('Example cluster created', () => {
-   const app = new cdk.App();
+test('MskProvisionedCluster stack created', () => {
+   const app = new cdk.App({
+    context: {
+      "MskProvisionedCluster": {
+        "vpc": {
+          "cidr": "10.4.0.0/16"
+        },
+        "subnets": {
+          "private": {
+            "cidrMask": 24
+          },
+          "public": {
+            "cidrMask": 24
+          }
+        },
+        "authentication": {
+          "unauthenticated": true,
+          "sasl": {
+            "iam": true,
+            "scram": "bob"
+          }
+        }
+      }
+    }
+  }
+  );
 
-   const stack = new ExampleCluster.ZillaPlusExampleMskCluster(app, 'MyTestStack',
-   {
-    enableMtls: false,
-    mskCertificateAuthorityArn: undefined,
+  const stack = new MskProvisionedClusterStack(app, 'MskProvisionedCluster', {
+    env: {
+      account: '12345678',
+      region: 'us-east-1'
+    }
   });
 
   const template = Template.fromStack(stack);
 
   template.hasResourceProperties('AWS::EC2::VPC', {
-    CidrBlock: "10.0.0.0/16"
+    CidrBlock: "10.4.0.0/16"
   });
 
   template.hasResourceProperties('AWS::EC2::Subnet', {
-    CidrBlock: "10.0.0.0/24",
+    CidrBlock: "10.4.0.0/24",
     MapPublicIpOnLaunch: false,
     VpcId:
     {
-        Ref: "MskVpcA76CAC9E"
+        Ref: "ZillaPlusMskVpcCA7B140D"
     }
   });
 
@@ -60,7 +82,7 @@ test('Example cluster created', () => {
                 CidrIp: "0.0.0.0/0",
                 FromPort: 9092,
                 IpProtocol: "tcp",
-                ToPort: 9096,
+                ToPort: 9098,
             }
         ],
     });
@@ -71,10 +93,10 @@ test('Example cluster created', () => {
             ClientSubnets:
             [
                 {
-                    Ref: "MskVpcPrivateSubnetSubnet1Subnet57B34710"
+                    Ref: "ZillaPlusMskVpcZillaPlusMskPrivateSubnet1Subnet0D870D15"
                 },
                 {
-                    Ref: "MskVpcPrivateSubnetSubnet2Subnet197639D6"
+                    Ref: "ZillaPlusMskVpcZillaPlusMskPrivateSubnet2Subnet06666410"
                 }
             ],
             InstanceType: "kafka.t3.small"

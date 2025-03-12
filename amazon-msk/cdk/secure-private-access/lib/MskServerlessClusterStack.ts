@@ -182,9 +182,5 @@ export class MskServerlessClusterStack extends cdk.Stack {
       value: vpc.vpcId,
       exportName: `${id}-VpcId`
     });
-
-    new cdk.CfnOutput(this, 'SubnetIds', {
-      value: JSON.stringify(vpc.isolatedSubnets.map(subnet => subnet.subnetId)),
-    });
   }
 }

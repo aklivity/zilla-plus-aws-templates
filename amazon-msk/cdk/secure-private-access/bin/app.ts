@@ -3,7 +3,9 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { SecurePrivateAccessStack } from '../lib/SecurePrivateAccessStack';
 import { SecurePrivateAccessClientStack } from '../lib/SecurePrivateAccessClientStack';
+import { SecurePublicAccessStack } from '../lib/SecurePublicAccessStack';
 import { MskServerlessClusterStack } from '../lib/MskServerlessClusterStack';
+import { MskProvisionedClusterStack } from '../lib/MskProvisionedClusterStack';
 
 const app = new cdk.App();
 const env = {
@@ -12,6 +14,7 @@ const env = {
 };
 
 new MskServerlessClusterStack(app, 'MskServerlessCluster', { env: env });
+new MskProvisionedClusterStack(app, 'MskProvisionedCluster', { env: env });
 
 if (app.node.tryGetContext('SecurePrivateAccess')) {
   new SecurePrivateAccessStack(app, 'SecurePrivateAccess', { env: env });
@@ -19,4 +22,8 @@ if (app.node.tryGetContext('SecurePrivateAccess')) {
 
 if (app.node.tryGetContext('SecurePrivateAccessClient')) {
   new SecurePrivateAccessClientStack(app, 'SecurePrivateAccessClient', { env: env });
+}
+
+if (app.node.tryGetContext('SecurePublicAccess')) {
+  new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env });
 }
