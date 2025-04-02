@@ -313,7 +313,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     const machineImage = context.ami ?
       ec2.MachineImage.genericLinux({
-        [`${cdk.Arn.extractResourceName(context.ami, 'region')}`]: context.ami
+        [cdk.Stack.of(this).region]: context.ami
       })
       : ec2.MachineImage.lookup({
           name: 'Aklivity Zilla Plus *',
