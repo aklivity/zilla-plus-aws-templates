@@ -352,7 +352,7 @@ SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${mskCredentials
 USERNAME=$(echo $SECRET_STRING | jq -r '.username')
 PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
 
-cat <<EOF> client.properties
+cat <<EOF > client.properties
 sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512

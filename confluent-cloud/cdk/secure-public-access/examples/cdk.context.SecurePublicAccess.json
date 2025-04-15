@@ -1,0 +1,12 @@
+{
+  "SecurePublicAccess":
+  {
+    "internal": {
+      "servers": "<your Confluent Cloud bootstrap servers>"
+    },
+    "external": {
+      "servers": "<your custom domain bootstrap servers>",
+      "certificate": "<your custom domain wildcard tls certificate key ARN>"
+    }
+  }
+}
