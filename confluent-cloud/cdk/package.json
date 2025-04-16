@@ -1,8 +1,8 @@
 {
-  "name": "secure-public-access",
+  "name": "confluent-cloud",
   "version": "0.1.0",
   "bin": {
-    "secure-public-access": "bin/secure-public-access.js"
+    "confluent-cloud": "bin/confluent-cloud.js"
   },
   "scripts": {
     "build": "tsc",
