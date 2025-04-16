@@ -1,6 +1,6 @@
-# Deploy IotIngestAndControl stack via CDK
+# Deploy WebStreaming stack via CDK
 
-This guide will help you gather the necessary AWS and Confluent Cloud values required to configure and deploy Zilla Plus IOT Ingest and Control using CDK. You can use Public, PrivateLink or VPC peering connection type to your Confluent Cloud cluster.
+This guide will help you gather the necessary AWS and Confluent Cloud values required to configure and deploy Zilla Plus Web Streaming using CDK. You can use Public, PrivateLink or VPC peering connection type to your Confluent Cloud cluster.
 
 ## Prerequisites
 
@@ -25,12 +25,12 @@ This guide will help you gather the necessary AWS and Confluent Cloud values req
 
 ## Configure the stack
 
-You can set these `context` variables via `cdk.context.json`, under `IotIngestAndControl` object.
+You can set these `context` variables via `cdk.context.json`, under `WebStreaming` object.
 
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n examples/cdk.context.IotIngestAndControl.json cdk.context.json
+cp -n examples/cdk.context.WebStreaming.json cdk.context.json
 ```
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
@@ -59,7 +59,7 @@ confluent kafka cluster describe <cluster-id> \
   --output json | jq -r '.endpoint'
 ```
 
-Set the Bootstrap Servers on Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `confluentCloud` `servers` variable.
+Set the Bootstrap Servers on Zilla Plus via `cdk.context.json`, in the `WebStreaming` `confluentCloud` `servers` variable.
 
 ### Variables of PrivateLink Connection
 Note: skip this if you're not using PrivateLink.
@@ -106,6 +106,19 @@ CIDRs of your VPC peering for ALL availability zones.
 
 The Peering connections in AWS that was accepted after creating the VPC Peering in Confluent Cloud towards the AWS VPC.
 
+### `mappings`: Kafka Topic Mappings
+
+```json
+    "mappings": 
+    [
+        {"topic": "<your kafka topic>"},
+        {"topic": "<your kafka topic>", "path": "<your custom path>"}
+    ]
+```
+
+This array variable defines the Kafka topics exposed through REST and SSE. If `path` is not specified, the topic will be exposed on `/<topic>`.
+To enable a custom path for the Kafka topic, set the `path` field to the path where the Kafka topic should be exposed.
+
 
 ### `public` Zilla Plus variables
 
@@ -129,7 +142,7 @@ aws acm list-certificates \
   --output table
 ```
 
-Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `public` `certificate` variable.
+Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `public` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
@@ -141,7 +154,7 @@ aws secretsmanager list-secrets \
   --output table
 ```
 
-Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `public` `certificate` variable.
+Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `public` `certificate` variable.
 
 If using AWS Secrets Manager to store the TLS certificate, the secret value should contain a private key and full certificate chain in text-based PEM format.
 
@@ -162,13 +175,21 @@ For example, the secret value would be of the form:
 -----END CERTIFICATE-----
 ```
 
+#### `port`: Public TCP Port
+
+> Default: `7143`
+
+This variable defines the public port number to be used by REST and SSE clients.
+
+
+
 ### `capacity`: Zilla Plus EC2 Instances
 
 > Default: `2`
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `capacity` variable.
+Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `capacity` variable.
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -178,7 +199,7 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `instanceType` variable.
+Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `instanceType` variable.
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
@@ -194,7 +215,7 @@ aws iam list-roles \
   --output table
 ```
 
-Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `roleName` variable.
+Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `roleName` variable.
 
 ### `securityGroup`: Zilla Plus EC2 Instance Security Group
 
@@ -210,7 +231,7 @@ aws ec2 describe-security-groups \
   --output table
 ```
 
-Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `securityGroup` variable.
+Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `securityGroup` variable.
 
 ### `cloudwatch` Zilla Plus variables
 
@@ -243,7 +264,7 @@ aws logs describe-log-groups \
 
 This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
 
-Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `cloudwatch` `logs` `group` variable.
+Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `cloudwatch` `logs` `group` variable.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -255,7 +276,34 @@ aws cloudwatch list-metrics \
 | uniq
 ```
 
-Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `cloudwatch` `metrics` `namespace` variable.
+Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `cloudwatch` `metrics` `namespace` variable.
+
+
+### Enable JWT Access Tokens
+
+To enable the JWT authentication and API access control, you need to provide the `jwt` context variable. You will also need to set the JWT Issuer (`issuer`), JWT Audience (`audience`) and JWKS URL (`keys_url`) context variable inside the `jwt` object. Example:
+
+```json
+    "jwt": {
+      "issuer" : "https://auth.example.com",
+      "audience": "https://api.example.com",
+      "keysUrl": "https://{yourDomain}/.well-known/jwks.json"
+    }
+```
+
+
+### Enable Glue Schema Registry
+
+To enable the Glue Schema Registry for schema fetching, set the context variable `glueRegistry` to the name of the Glue Registry.
+
+1. List all Glue Registries:
+
+```bash
+aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
+```
+
+Note down the Glue Registry name (RegistryName) you want to use.
+
 
 ### Enable SSH Access
 
@@ -271,7 +319,7 @@ aws ec2 describe-key-pairs \
   --output table
 ```
 
-Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `sshKey` variable.
+Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `WebStreaming` `sshKey` variable.
 
 ## Deploy the stack via CDK
 
@@ -288,7 +336,7 @@ npm install
 Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-cdk synth IotIngestAndControl
+cdk synth WebStreaming
 ```
 
 This generates the cdk.out directory containing the synthesized CloudFormation template.
@@ -306,22 +354,22 @@ cdk bootstrap
 Deploy your resources to AWS:
 
 ```bash
-cdk deploy IotIngestAndControl
+cdk deploy WebStreaming
 ```
 
 Sample output:
 
 ```bash
 Outputs:
-IotIngestAndControl.LoadBalancerDnsName = <generated-hostname>.elb.<region>.amazonaws.com
+WebStreaming.LoadBalancerDnsName = <generated-hostname>.elb.<region>.amazonaws.com
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/IotIngestAndControl/<uuid>
+arn:aws:cloudformation:<region>>:<account_id>:stack/WebStreaming/<uuid>
 ```
 
 ### Post deployment configuration for PrivateLink
 Note: you can skip this step if you're not connecting through PrivateLink.
 
-Copy the `IotIngestAndControl.PrivateLinkVpcEndpointId` output after deploying the stack, and use this to create an Access Point in your PrivateLink Attachment in the network management tab in Confluent Cloud.
+Copy the `WebStreaming.PrivateLinkVpcEndpointId` output after deploying the stack, and use this to create an Access Point in your PrivateLink Attachment in the network management tab in Confluent Cloud.
 
 
 ### Configure Global DNS
@@ -335,29 +383,31 @@ nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider. For example:
 
 ```bash
-X.X.X.X  mqtt.example.aklivity.io
+X.X.X.X  web.example.aklivity.io
 ```
 
-### Test the Zilla Plus MQTT broker
+### Test the Zilla Plus REST and SSE
 
-If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
+If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
 
 ```bash
- mosquitto_sub --url mqtts://mqtt.example.aklivity.io/sensors/# -d
+curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/<your path>"
 ```
 
-Open another terminal and publish to topic `sensors/one`.
+Note that `your path` defaults to the exposed Kafka topic in your config.
+
+In another terminal, use `curl` to POST and notice the data arriving on your SSE stream.
 
 ```bash
-mosquitto_pub --url mqtts://mqtt.example.aklivity.io/sensors/one -m "Hello, World" -d
+curl -d 'Hello, World' -X POST https://web.example.aklivity.io:7143/<your path>
 ```
 
 ### Destroy the stack
 
-Destroy the `IotIngestAndControl` stack when you no longer need it.
+Destroy the `WebStreaming` stack when you no longer need it.
 
 ```bash
-cdk destroy IotIngestAndControl
+cdk destroy WebStreaming
 ```
 
 [ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html

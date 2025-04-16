@@ -16,66 +16,75 @@ import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
 interface TemplateData {
   name: string;
   vault: string;
+  glue?: object;
   cloudwatch?: object;
+  mappings?: Array<object>;
   public?: object;
-  topics?: object;
   kafka?: object;
+  jwt?: object;
 }
 
-interface IotIngestAndControlVpcContext {
+interface WebStreamingVpcContext {
   cidr: string
 }
 
-interface IotIngestAndControlSubnetsContext {
-  public: IotIngestAndControlSubnetContext,
-  private: IotIngestAndControlSubnetContext
+interface WebStreamingSubnetsContext {
+  public: WebStreamingSubnetContext,
+  private: WebStreamingSubnetContext
 }
 
-interface IotIngestAndControlSubnetContext {
+interface WebStreamingSubnetContext {
   cidrMask: number
 }
 
-interface IotIngestAndControlConfluentCloudContext {
+interface WebStreamingConfluentCloudContext {
   servers: string,
   credentials: string,
   privateLinkServiceId?: string
 }
 
-interface IotIngestAndControlPublicContext {
+interface WebStreamingPublicContext {
   certificate: string,
   port?: number
 }
 
-interface IotIngestAndControlTopicsContext {
-  sessions?: string,
-  retained?: string,
-  messages?: string
+interface WebStreamingMappingContext {
+  topic: string;
+  path?: string;
 }
 
-interface IotIngestAndControlCloudWatchContext {
-  metrics?: IotIngestAndControlCloudWatchMetricsContext,
-  logs?: IotIngestAndControlCloudWatchLogsContext
+interface WebStreamingJWTContext {
+  issuer: string,
+  audience: string,
+  keysUrl: string
 }
 
-interface IotIngestAndControlCloudWatchMetricsContext {
+interface WebStreamingCloudWatchContext {
+  metrics?: WebStreamingCloudWatchMetricsContext,
+  logs?: WebStreamingCloudWatchLogsContext
+}
+
+interface WebStreamingCloudWatchMetricsContext {
   namespace: string
 }
 
-interface IotIngestAndControlCloudWatchLogsContext {
+interface WebStreamingCloudWatchLogsContext {
   group: string,
   stream?: string
 }
 
-interface IotIngestAndControlContext {
+interface WebStreamingContext {
   vpcId?: string,
   cidrs?: string[],
   peeringConnectionId?: string,
-  vpc?: IotIngestAndControlVpcContext,
-  subnets?: IotIngestAndControlSubnetsContext,
-  confluentCloud: IotIngestAndControlConfluentCloudContext;
-  public: IotIngestAndControlPublicContext;
-  topics: IotIngestAndControlTopicsContext;
-  cloudwatch?: IotIngestAndControlCloudWatchContext,
+  vpc?: WebStreamingVpcContext,
+  subnets?: WebStreamingSubnetsContext,
+  confluentCloud: WebStreamingConfluentCloudContext;
+  public: WebStreamingPublicContext;
+  mappings: WebStreamingMappingContext[];
+  jwt: WebStreamingJWTContext,
+  glueRegistry?: string,
+  cloudwatch?: WebStreamingCloudWatchContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -85,12 +94,12 @@ interface IotIngestAndControlContext {
   kafkaTopicCreationDisabled?: boolean
 }
 
-export class IotIngestAndControlStack extends cdk.Stack {
+export class WebStreamingStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.getContext(id) as IotIngestAndControlContext;
+    const context = this.node.getContext(id) as WebStreamingContext;
 
     // detect dependencies
     const nitroEnclavesEnabled: boolean = context.public.certificate.startsWith("arn:aws:acm");
@@ -115,8 +124,18 @@ export class IotIngestAndControlStack extends cdk.Stack {
       vault: nitroEnclavesEnabled ? 'aws-acm' : 'aws-secrets',
       kafka: {},
       public: {},
-      topics: {}
+      mappings: []
     };
+
+    const mappings = context.mappings;
+
+    mappings.forEach(mapping => {
+      if (!mapping.path) {
+        mapping.path = `/${mapping.topic}`;
+      }
+    });
+
+    const kafkaTopics: string[] = mappings.map((mapping: { topic: any; }) => mapping.topic);
 
     context.vpc ??= { cidr: '10.0.0.0/16' };
     context.subnets ??= { private: { cidrMask: 24 }, public: { cidrMask: 24 } };
@@ -179,7 +198,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
       });
     }
 
-    const mqttPort = context.public.port ?? 8883;
+    const publicPort = context.public.port ?? 7143;
 
     let securityGroup;
 
@@ -196,8 +215,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
 
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
-        ec2.Port.tcp(Number(mqttPort)),
-        'Allow inbound traffic on MQTT port');
+        ec2.Port.tcp(Number(publicPort)),
+        'Allow inbound traffic on Web Streaming port');
     }
 
     if (internalPrivateLink) {
@@ -233,10 +252,14 @@ export class IotIngestAndControlStack extends cdk.Stack {
     if (!context.roleName) {
       role = new iam.Role(this, `ZillaPlus-Role`, {
         roleName: `zilla-plus-${id}`,
-        assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+        assumedBy: new iam.CompositePrincipal(
+          new iam.ServicePrincipal('ec2.amazonaws.com'),
+          new iam.ServicePrincipal('cloudformation.amazonaws.com')
+        ),
         managedPolicies: [
           iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCertificateManagerReadOnly'),
+          iam.ManagedPolicy.fromAwsManagedPolicyName('AWSGlueSchemaRegistryReadonlyAccess'),
           iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLogsFullAccess'),
         ],
         inlinePolicies: {
@@ -340,10 +363,28 @@ export class IotIngestAndControlStack extends cdk.Stack {
       }
     }
 
+    const jwt = context.jwt;
+    if (jwt)
+    {
+      zillaYamlData.jwt = {
+        issuer: jwt.issuer,
+        audience: jwt.audience,
+        keysUrl: jwt.keysUrl
+      }
+    }
+
+    const glueRegistry = context.glueRegistry;
+    if (glueRegistry)
+    {
+      zillaYamlData.glue = {
+        registry: glueRegistry
+      }
+    }
+
     zillaYamlData.public = {
       ...zillaYamlData.public,
       certificate: context.public.certificate,
-      port: Number(mqttPort)
+      port: Number(publicPort)
     }
 
     const credentialsSecretName = context.confluentCloud.credentials;
@@ -361,16 +402,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
       }
     }
 
-    const topics = context.topics;
-    const kafkaTopicMqttSessions = topics?.sessions ?? "mqtt-sessions";
-    const kafkaTopicMqttRetained = topics?.retained ?? "mqtt-retained";
-    const kafkaTopicMqttMessages = topics?.messages ?? "mqtt-messages";
 
-    zillaYamlData.topics = {
-      sessions: kafkaTopicMqttSessions,
-      messages: kafkaTopicMqttMessages,
-      retained: kafkaTopicMqttRetained
-    };
+    zillaYamlData.mappings = mappings;
 
     const kafkaTopicCreationDisabled = context.kafkaTopicCreationDisabled ?? false;
 
@@ -397,10 +430,17 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const zillaYamlPath = path.resolve(__dirname, '../zilla.yaml');
     const zillaYaml: string = fs.existsSync(zillaYamlPath)
       ? fs.readFileSync(zillaYamlPath, 'utf-8')
-      : this.renderMustache('IotIngestAndControl/zilla.yaml.mustache', zillaYamlData);
+      : this.renderMustache('WebStreaming/zilla.yaml.mustache', zillaYamlData);
 
     let kafkaTopicCreationCommand = "";
     if (!kafkaTopicCreationDisabled) {
+      let firstTopicCommand = `./kafka-topics.sh --create --if-not-exists --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopics[0]} --config 'cleanup.policy=compact'`;
+      let topicsCommand = "";
+      kafkaTopics.slice(1).forEach((t: String) => {
+      topicsCommand = topicsCommand.concat(`
+  ./kafka-topics.sh --create --if-not-exists --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${t} --config 'cleanup.policy=compact'`);
+      });
+
         kafkaTopicCreationCommand = `
 wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
 tar -xzf kafka_2.13-3.5.1.tgz
@@ -421,13 +461,12 @@ cat <<EOF > createTopics.sh
 #!/bin/bash
 
 while true; do
-  ./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact' 2>&1 && break
+  ${firstTopicCommand} 2>&1 && break
 
   sleep 2
 done
 
-./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
-./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttMessages}
+${topicsCommand}
 
 EOF
 
@@ -489,13 +528,13 @@ chmod +x createTopics.sh
 
     const targetGroup = new elbv2.NetworkTargetGroup(this, `ZillaPlus-TargetGroup`, {
       protocol: elbv2.Protocol.TCP,
-      port: Number(mqttPort),
+      port: Number(publicPort),
       vpc: vpc,
       targetType: elbv2.TargetType.INSTANCE
     });
 
-    loadBalancer.addListener(`TCP-${mqttPort}`, {
-      port: Number(mqttPort),
+    loadBalancer.addListener(`TCP-${publicPort}`, {
+      port: Number(publicPort),
       protocol: elbv2.Protocol.TCP,
       defaultAction: elbv2.NetworkListenerAction.forward([targetGroup])
     })

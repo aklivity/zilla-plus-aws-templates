@@ -46,10 +46,10 @@ Then, further modify `cdk.context.json` based on the context variable descriptio
 
 #### `servers`: Confluent Cloud bootstrap servers
 
-There are three possible ways to connect Zilla Plus to Confluent Cloud:
-1. Connecting over the public internet
-2. [AWS PrivateLink] in Confluent Cloud 
-3. [VPC Peering]
+There are three possible ways to connect Zilla Plus to your Confluent Cloud cluster:
+1. Public Internet to Confluent Cloud
+2. [AWS PrivateLink] to Confluent Cloud 
+3. [VPC Peering] to Confluent Cloud
 
 To get the bootstrap servers of the Confluent Cloud Cluster run:
 
@@ -83,7 +83,7 @@ When deploying Zilla Plus to connect through PrivateLink your Confluent Cloud En
 ### Variables of VPC Peering Connection
 Note: skip this if you're not using VPC peering.
 
-When deploying Zilla Plus to connect through VPC Peering, the stack expects that the VPC that Zilla Plus is being deployed to already exists and is configured with VPC Peering in Confluent Cloud. Follow [this guide](https://docs.confluent.io/cloud/current/networking/peering/aws-peering.html) until Step 2 and set the necessary variable for the stack:
+When deploying Zilla Plus to connect through VPC Peering, the stack expects that the VPC that Zilla Plus is being deployed to already exists and is configured with VPC Peering in Confluent Cloud. Follow [this guide](https://docs.confluent.io/cloud/current/networking/peering/aws-peering.html) until Step 2, then set the corresponding values for the `vpcId` and `cidrs` stack variables.
 
 #### `vpcId`
 The AWS VPC ID you are peering with Confluent Cloud network.
@@ -96,7 +96,7 @@ The AWS VPC ID you are peering with Confluent Cloud network.
       "10.10.3.0/27"
     ],
 ```
-CIDRS of your VPC peering for ALL availability zones.
+CIDRs of your VPC peering for ALL availability zones.
 
 #### `peeringConnectionId`
 ```json

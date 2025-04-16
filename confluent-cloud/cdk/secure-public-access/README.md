@@ -2,7 +2,8 @@
 
 Deploy [Zilla Plus for Confluent Cloud] via the AWS Cloud Development Kit (CDK).
 
-- [IotIngestAndControl](README.IotIngestAndControl.md)
 - [SecurePublicAccess](README.SecurePublicAccess.md)
+- [IotIngestAndControl](README.IotIngestAndControl.md)
+- [WebStreaming](README.WebStreaming.md)
 
 [Zilla Plus for Confluent Cloud]: https://aws.amazon.com/marketplace/pp/prodview-eblxkinsqbaks
