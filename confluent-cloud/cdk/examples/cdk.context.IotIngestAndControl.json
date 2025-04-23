@@ -1,0 +1,12 @@
+{
+  "IotIngestAndControl":
+  {
+    "confluentCloud": {
+      "servers": "<your Confluent Cloud bootstrap servers>",
+      "credentials": "<AWS Secret Name with your Confluent Cloud API key>"
+    },
+    "public": {
+      "certificate": "<your public tls certificate key ARN>"
+    }
+  }
+}
