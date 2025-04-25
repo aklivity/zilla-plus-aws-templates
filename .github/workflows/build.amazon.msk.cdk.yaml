@@ -12,14 +12,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false
-          sparse-checkout: amazon-msk/cdk/secure-private-access
+          sparse-checkout: amazon-msk/cdk
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Install modules
-        working-directory: amazon-msk/cdk/secure-private-access
+        working-directory: amazon-msk/cdk
         run: npm install
       - name: Run tests
-        working-directory: amazon-msk/cdk/secure-private-access
+        working-directory: amazon-msk/cdk
         run: npm run test
 
