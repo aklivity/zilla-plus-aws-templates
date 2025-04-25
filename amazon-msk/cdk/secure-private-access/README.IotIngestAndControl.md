@@ -1,6 +1,6 @@
-# Deploy SecurePublicAccess stack via CDK
+# IOT Ingest and Control deploy via CDK
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus Secure Public Access using CDK that allows Kafka Clients to reach a MSK Provisioned cluster from the Internet.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IOT Ingest and Control using CDK.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ This guide will help you gather the necessary AWS values required to configure a
        region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
    ```
 
-9. Verify that your MSK Provisioned cluster Security Group allows inbound traffic on port range `9094-9098`.
+9. Verify that your MSK Provisioned cluster Security Group allows inbound traffic for port `9096` (SASL).
 
 ## List the inbound rules for Security Group
 
@@ -36,16 +36,16 @@ aws ec2 describe-security-groups \
   --output json
 ```
 
-If the Security Groups do not allow inbound traffic on port range `9094-9098`, then make sure to allow that and re-verify.
+If the Security Groups do not allow inbound traffic for port `9096`, then make sure to allow that and re-verify.
 
 ## Configure the stack
 
-You can set these `context` variables via `cdk.context.json`, under `SecurePublicAccess` object.
+You can set these `context` variables via `cdk.context.json`, under `IotIngestAndControl` object.
 
 If your local `cdk.context.json` file does not already exist, copy the example to get started.
 
 ```bash
-cp -n examples/cdk.context.SecurePublicAccess.json cdk.context.json
+cp -n examples/cdk.context.IotIngestAndControl.json cdk.context.json
 ```
 
 Then, further modify `cdk.context.json` based on the context variable descriptions below.
@@ -64,7 +64,7 @@ aws ec2 describe-subnets \
   --output json
 ```
 
-Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `vpcId` variable.
+Set the `VPC ID` for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `vpcId` variable.
 
 #### `subnetIds`: Subnet IDs
 
@@ -79,48 +79,62 @@ aws kafka list-clusters-v2 \
   --output json
 ```
 
-Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `subnetIds` variable.
+Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `subnetIds` variable.
 
-### `internal` related variables
+### `msk` related variables
 
 ```json
-    "internal":
+    "msk":
     {
-      "servers": "<your Amazon MSK Provisioned bootstrap servers>"
-    }
+      "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+      "credentials":
+      {
+        "sasl": "<Secret Name associated with your MSK cluster>"
+      }
+    },
 ```
 
-#### `servers`: MSK Provisioned bootstrap servers
+#### `servers`: MSK Bootstrap Servers
 
-To get the bootstrap servers of the MSK Serverless Cluster run:
+To get the bootstrap servers of the MSK cluster run:
 
 ```bash
 aws kafka get-bootstrap-brokers \
     --cluster-arn <msk-cluster-arn> \
+    --query '{BootstrapBrokerStringSaslScram: BootstrapBrokerStringSaslScram}' \
     --output table
 ```
 
-Set one of the Bootstrap Servers on Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `internal` `servers` variable.
+Use the `SASL/SCRAM Bootstrap Server` to set the `msk.servers` variable.
 
-### `external` Zilla Plus variables
+#### `credentials.sasl`: MSK Credentials Secret Name
+
+Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
+
+List all secrets in Secrets Manager that can be associated with MSK:
+
+```bash
+aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
+```
+
+### `public` Zilla Plus variables
 
 ```json
-    "external":
+    "public":
     {
-      "servers": "<your custom domain bootstrap servers>",
-      "certificate": "<your custom domain wildcard tls certificate key ARN>"
+      "servers": "<your public wildcard servers including port>",
+      "certificate": "<your public tls certificate key ARN>"
     }
 ```
 
-#### `servers`: Custom domain bootstrap servers
+#### `servers`: Public wildcard servers including port
 
-This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
-The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
-The external bootstrap server port should match the internal bootstrap server port.
+This variable defines the public servers to be used by MQTT clients in the format `hostname:port`.
+The public server name should match the custom domain wildcard DNS pattern of the public TLS certificate.
 
-Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `servers` variable.
+Set the public server for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `public` `servers` variable.
 
-#### `certificate`: Zilla Plus TLS Certificate ARN
+#### `certificate`: Public TLS Certificate Key
 
 You need the ARN of either the Certificate Manager certificate or the Secrets Manager secret that contains your TLS certificate private key.
 
@@ -133,7 +147,7 @@ aws acm list-certificates \
   --output table
 ```
 
-Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `certificate` variable.
+Set the AWS Certificate Manager ARN for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `public` `certificate` variable.
 
 Note: If you specify an AWS Certificate Manager certificate ARN, then Zilla Plus will automatically enable AWS Nitro Enclaves for Zilla Plus and use [ACM for Nitro Enclaves] to install the certificate and seamlessly replace expiring certificates.
 
@@ -145,7 +159,7 @@ aws secretsmanager list-secrets \
   --output table
 ```
 
-Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `external` `certificate` variable.
+Alternatively, set the AWS Secrets Manager ARN for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `public` `certificate` variable.
 
 If using AWS Secrets Manager to store the TLS certificate, the secret value should contain a private key and full certificate chain in text-based PEM format.
 
@@ -166,13 +180,13 @@ For example, the secret value would be of the form:
 -----END CERTIFICATE-----
 ```
 
-### `capacity`: Zilla Plus EC2 Instances
+### `capacity`: Zilla Plus Capacity
 
 > Default: `2`
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `capacity` variable.
+Optionally override the default initial number of instances for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `capacity` variable.
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
@@ -182,7 +196,49 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 This variable defines the initial number of Zilla Plus instances.
 
-Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `instanceType` variable.
+Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `instanceType` variable.
+
+### Kafka topics
+
+```json
+      "topics":
+      {
+        "automatic": true,
+        "sessions": "<your sessions topic>",
+        "messages": "<your messages topic>",
+        "retained": "<your retained topic>"
+      }
+```
+
+#### `topics.automatic`: Kafka Topic automatic creation
+
+> Default: `true`
+
+By default, Kafka topics required by Zilla Plus are created automatically. To disable this set the context variable `topics.automatic` to `false`.
+
+#### `topics.sessions`: Kafka Topic for MQTT Sessions
+
+> Default: `mqtt-sessions`
+
+This variable defines the Kafka topic storing MQTT sessions with a cleanup policy set to "compact".
+
+Optionally override the Kafka topic for MQTT sessions via `cdk.context.json`, in the `IotIngestAndControl` `topics` `sessions` variable.
+
+#### `topics.messages`: Kafka Topic for MQTT Messages
+
+> Default: `mqtt-messages`
+
+This variable defines the Kafka topic storing MQTT messages with a cleanup policy set to "delete".
+
+Optionally override the Kafka topic for MQTT messages via `cdk.context.json`, in the `IotIngestAndControl` `topics` `messages` variable.
+
+#### `topics.retained`: Kafka Topic for MQTT Retained Messages
+
+> Default: `mqtt-retained`
+
+This variable defines the Kafka topic storing MQTT retained messages with a cleanup policy set to "compact".
+
+Optionally override the Kafka topic for MQTT retained messages via `cdk.context.json`, in the `IotIngestAndControl` `topics` `retained` variable.
 
 ### `roleName`: Zilla Plus EC2 Instance Assumed Role
 
@@ -198,7 +254,7 @@ aws iam list-roles \
   --output table
 ```
 
-Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `roleName` variable.
+Optionally override the assumed role (RoleName) for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `roleName` variable.
 
 ### `securityGroup`: Zilla Plus EC2 Instance Security Group
 
@@ -214,7 +270,7 @@ aws ec2 describe-security-groups \
   --output table
 ```
 
-Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `securityGroup` variable.
+Optionally override the security group IDs (GroupId) for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `securityGroup` variable.
 
 ### `cloudwatch` Zilla Plus variables
 
@@ -247,7 +303,7 @@ aws logs describe-log-groups \
 
 This command returns a table listing the names of all the log groups in your CloudWatch in the current AWS region.
 
-Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `cloudwatch` `logs` `group` variable.
+Optionally specify the CloudWatch Logs Group for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `cloudwatch` `logs` `group` variable.
 
 #### List All CloudWatch Custom Metric Namespaces
 
@@ -259,7 +315,7 @@ aws cloudwatch list-metrics \
 | uniq
 ```
 
-Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `cloudwatch` `metrics` `namespace` variable.
+Optionally specify the CloudWatch Metrics Namespace for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `cloudwatch` `metrics` `namespace` variable.
 
 ### Enable SSH Access
 
@@ -275,7 +331,7 @@ aws ec2 describe-key-pairs \
   --output table
 ```
 
-Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `SecurePublicAccess` `sshKey` variable.
+Optionally specify the EC2 KeyPair name for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `sshKey` variable.
 
 ## Deploy the stack via CDK
 
@@ -292,7 +348,7 @@ npm install
 Run the following command to synthesize your stack into a CloudFormation template:
 
 ```bash
-cdk synth SecurePublicAccess
+cdk synth IotIngestAndControl
 ```
 
 This generates the cdk.out directory containing the synthesized CloudFormation template.
@@ -310,46 +366,57 @@ cdk bootstrap
 Deploy your resources to AWS:
 
 ```bash
-cdk deploy SecurePublicAccess
+cdk deploy IotIngestAndControl
 ```
 
 Sample output:
 
 ```bash
 Outputs:
-SecurePublicAccess.CustomDnsWildcard = *.your.custom.domain
-SecurePublicAccess.LoadBalancerDnsName = <generated-hostname>.elb.<region>.amazonaws.com
+IotIngestAndControl.LoadBalancerDnsName = <generated-hostname>.elb.<region>.amazonaws.com
+IotIngestAndControl.MqttDnsWildcard = *.your.custom.domain
 Stack ARN:
-arn:aws:cloudformation:<region>>:<account_id>:stack/SecurePublicAccess/<uuid>
+arn:aws:cloudformation:<region>>:<account_id>:stack/IotIngestAndControl/<uuid>
 ```
 
-#### Configure Global DNS
+### Configure Global DNS
 
-This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.your.custom.domain` then the DNS entries are setup in your DNS provider for `your.custom.domain`.
+When using a wildcard DNS name for your own domain, such as `*.your.custom.domain` then the DNS entries are setup in your DNS provider for `your.custom.domain`.
 
-Lookup the IP addresses of your load balancer using `nslookup` and the `SecurePublicAccess.LoadBalancerDnsName` stack output.
+Lookup the IP addresses of your load balancer using `nslookup` and the `IotIngestAndControl.LoadBalancerDnsName` stack output.
 
 ```bash
 nslookup aws-generated-hostname.elb.us-east-1.amazonaws.com
 ```
 
-For testing purposes you can edit your local `/etc/hosts` file instead of updating your DNS provider.
+For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider.
 
-```dns
-54.173.1.123  b-1.your.custom.domain b-2.your.custom.domain b-3.your.custom.domain
-54.173.1.456  b-1.your.custom.domain b-2.your.custom.domain b-3.your.custom.domain
+For example:
+
+```bash
+X.X.X.X  mqtt.example.aklivity.io
 ```
 
-In the example above, the Zilla Plus DNS name has 2 public IP addresses and 3 brokers in the MSK cluster.
+### Test the Zilla Plus MQTT broker
 
-Now you can use any Kafka client to connect to your MSK Provisioned cluster via your custom domain, using Kafka bootstrap server  `bootstrap.your.custom.domain:9094` if connecting via TLS, `bootstrap.your.custom.domain:9096` if connecting via SASL SCRAM, or `bootstrap.your.custom.domain:9098` if connecting via IAM.
+If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
+
+```bash
+mosquitto_sub --url mqtts://mqtt.example.aklivity.io/sensors/# -d
+```
+
+Open another terminal and publish to topic `sensors/one`.
+
+```bash
+mosquitto_pub --url mqtts://mqtt.example.aklivity.io/sensors/one -m "Hello, World" -d
+```
 
 ### Destroy the stack
 
-Destroy the `SecurePublicAccess` stack when you no longer need it.
+Destroy the `IotIngestAndControl` stack when you no longer need it.
 
 ```bash
-cdk destroy SecurePublicAccess
+cdk destroy IotIngestAndControl
 ```
 
 [ACM for Nitro Enclaves]: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html

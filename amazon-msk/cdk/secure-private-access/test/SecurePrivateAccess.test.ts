@@ -44,7 +44,8 @@ test('SecurePrivateAccess stack created', () => {
         {
           "server": "boot.example.aklivity.io:9098",
           "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
-        }
+        },
+        "ami": "ami-1234"
       }
     }
   }

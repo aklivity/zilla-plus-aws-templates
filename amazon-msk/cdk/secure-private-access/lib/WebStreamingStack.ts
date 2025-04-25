@@ -1,51 +1,80 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct, Node } from 'constructs';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import { Construct } from 'constructs';
+import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
-import * as path from 'path';
-import { LogGroup } from 'aws-cdk-lib/aws-logs';
-import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 
 interface TemplateData {
   name: string;
   vault: string;
+  glue?: object;
   cloudwatch?: object;
-  internal?: object;
-  external?: object;
+  mappings?: Array<object>;
+  public?: object;
+  kafka?: object;
+  jwt?: object;
 }
 
-interface SecurePrivateAccessInternalContext {
-  server: string
+interface WebStreamingMskContext {
+  servers: string,
+  credentials: WebStreamingMskCredentialsContext
 }
 
-interface SecurePrivateAccessExternalContext {
-  server: string,
+interface WebStreamingMskCredentialsContext {
+  sasl: string
+}
+
+interface WebStreamingJwtContext {
+  issuer: string,
+  audience: string,
+  keysUrl: string
+}
+
+interface WebStreamingGlueContext {
+  registry: string
+}
+
+interface WebStreamingPublicContext {
+  servers: string,
   certificate: string
 }
 
-interface SecurePrivateAccessCloudWatchContext {
-  metrics?: SecurePrivateAccessCloudWatchMetricsContext,
-  logs?: SecurePrivateAccessCloudWatchLogsContext
+interface WebStreamingMappingContext {
+  topic: string,
+  automatic: boolean,
+  path: string,
 }
 
-interface SecurePrivateAccessCloudWatchMetricsContext {
+interface WebStreamingCloudWatchContext {
+  metrics?: WebStreamingCloudWatchMetricsContext,
+  logs?: WebStreamingCloudWatchLogsContext
+}
+
+interface WebStreamingCloudWatchMetricsContext {
   namespace: string
 }
 
-interface SecurePrivateAccessCloudWatchLogsContext {
+interface WebStreamingCloudWatchLogsContext {
   group: string,
   stream?: string
 }
 
-interface SecurePrivateAccessContext {
+interface WebStreamingContext {
   vpcId: string,
   subnetIds: Array<string>,
-  internal: SecurePrivateAccessInternalContext;
-  external: SecurePrivateAccessExternalContext;
-  cloudwatch?: SecurePrivateAccessCloudWatchContext,
+  msk: WebStreamingMskContext;
+  public: WebStreamingPublicContext;
+  mappings: Array<WebStreamingMappingContext>,
+  jwt: WebStreamingJwtContext,
+  glue: WebStreamingGlueContext,
+  cloudwatch?: WebStreamingCloudWatchContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -55,19 +84,16 @@ interface SecurePrivateAccessContext {
   version?: string
 }
 
-export class SecurePrivateAccessStack extends cdk.Stack {
+export class WebStreamingStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
-    const context = this.node.getContext(id) as SecurePrivateAccessContext;
-
-    // default context values
-    context.vpcId ??= cdk.Fn.importValue("MskServerlessCluster-VpcId");
+    const context = this.node.getContext(id) as WebStreamingContext;
 
     // detect dependencies
-    const nitroEnclavesEnabled: boolean = context.external.certificate.startsWith("arn:aws:acm");
-    const secretsmanagerEnabled: boolean = context.external.certificate.startsWith("arn:aws:secretsmanager");
+    const nitroEnclavesEnabled: boolean = context.public.certificate.startsWith("arn:aws:acm");
+    const secretsmanagerEnabled: boolean = context.public.certificate.startsWith("arn:aws:secretsmanager");
     const cloudwatchEnabled: boolean =
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
@@ -76,34 +102,35 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.mappings ??= [];
+    context.mappings.forEach((mapping: WebStreamingMappingContext) => {
+      mapping.automatic ??= true;
+      mapping.path ??= `/${mapping.topic}`;
+    });
 
-    const [internalServer, internalPort] = context.internal.server.split(',')[0].split(':');
-    const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
-
-    const [externalServer, externalPort] = context.external.server.split(',')[0].split(':');
+    const [externalServer, externalPort] = context.public.servers.split(',')[0].split(':');
     const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
 
     // zilla.yaml template data
     const zillaYamlData: TemplateData = {
-      name: 'private',
+      name: 'iot',
       vault: nitroEnclavesEnabled ? 'aws-acm' : 'aws-secrets',
-      internal: {},
-      external: {}
+      public: {},
+      mappings: [],
+      kafka: {},
+      jwt: context.jwt,
+      glue: context.glue
     };
 
     const vpc = ec2.Vpc.fromLookup(this, 'Vpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({
-      subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+      subnetType: ec2.SubnetType.PUBLIC, 
       subnetFilters: [
         context.subnetIds
           ? ec2.SubnetFilter.byIds(context.subnetIds)
           : ec2.SubnetFilter.onePerAz()
       ]
     });
-
-    if (subnets.isPendingLookup) {
-      return;
-    }
 
     let securityGroup;
 
@@ -113,7 +140,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     }
     else {
       securityGroup = new ec2.SecurityGroup(this, 'ZillaPlus-SecurityGroup', {
-        securityGroupName: `ZillaPlus-${id}`,
+        securityGroupName: `zilla-plus-${id}`,
         description: `Zilla Plus Security Group`,
         vpc: vpc,
       });
@@ -121,14 +148,14 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
         ec2.Port.tcp(Number(externalPort)),
-        'Allow inbound traffic on external port');
+        'Allow inbound traffic on MQTT port');
     }
-
+      
     let role;
 
     if (!context.roleName) {
       role = new iam.Role(this, `ZillaPlus-Role`, {
-        roleName: `ZillaPlus-${id}`,
+        roleName: `zilla-plus-${id}`,
         assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
         managedPolicies: [
           iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
@@ -178,7 +205,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
       if (nitroEnclavesEnabled) {
         const association = new ec2.CfnEnclaveCertificateIamRoleAssociation(this, `ZillaPlus-EnclaveCertificateIamRoleAssociation`, {
-          certificateArn: context.external.certificate,
+          certificateArn: context.public.certificate,
           roleArn: role.roleArn,
         });
 
@@ -213,7 +240,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
       const logGroup = context.cloudwatch?.logs?.group;
       if (logGroup) {
-        const group = LogGroup.fromLogGroupName(this, `LogGroup-$logGroup`, logGroup);
+        const group = logs.LogGroup.fromLogGroupName(this, `LogGroup-$logGroup`, logGroup);
         const stream = context.cloudwatch?.logs?.stream ?? 'events';
 
         zillaYamlData.cloudwatch = {
@@ -235,29 +262,20 @@ export class SecurePrivateAccessStack extends cdk.Stack {
         };
       }
     }
-
-    const externalDomain = externalWildcardDNS.split("*.")[1];
-    const externalHost = `b-#.${externalDomain}`;
-
-    const internalDomain = internalWildcardDNS.split("*-")[1];
-    const internalHost = `b#-${internalDomain}`;
-    const defaultInternalHost = `boot-${internalDomain}`;
-
-    zillaYamlData.external = {
-      ...zillaYamlData.external,
-      certificate: context.external.certificate,
+    
+    zillaYamlData.kafka = {
+      servers: `['${context.msk.servers.split(",").join("','")}']`,
+      sasl : {
+        username: `\\\${{aws.secrets.${context.msk.credentials.sasl}#username}}`,
+        password: `\\\${{aws.secrets.${context.msk.credentials.sasl}#password}}`,
+      }
+    }
+    zillaYamlData.public = {
       authority: externalWildcardDNS,
-      host: externalHost,
-      port: Number(externalPort)
+      port: Number(externalPort),
+      certificate: context.public.certificate,
     }
-
-    zillaYamlData.internal = {
-      ...zillaYamlData.internal,
-      authority: internalWildcardDNS,
-      host: internalHost,
-      port: Number(internalPort),
-      defaultHost: defaultInternalHost
-    }
+    zillaYamlData.mappings = context.mappings;
 
     let userdataData = {
       stack: `${id}`,
@@ -268,7 +286,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     if (nitroEnclavesEnabled) {
       const acmYamlData = {
         external: {
-          certificate: context.external.certificate
+          certificate: context.public.certificate
         }
       }
       const acmYaml = this.renderMustache('acm.yaml.mustache', acmYamlData);
@@ -282,14 +300,22 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     const zillaYamlPath = path.resolve(__dirname, '../zilla.yaml');
     const zillaYaml: string = fs.existsSync(zillaYamlPath)
       ? fs.readFileSync(zillaYamlPath, 'utf-8')
-      : this.renderMustache('SecureAccess/zilla.yaml.mustache', zillaYamlData);
+      : this.renderMustache('WebStreaming/zilla.yaml.mustache', zillaYamlData);
 
     userdataData.yaml = {
       ...userdataData.yaml,
       zilla: zillaYaml
     }
 
-    const userdata: string = this.renderMustache('userdata.mustache', userdataData);
+    const userdata: ec2.UserData = ec2.UserData.custom(this.renderMustache('userdata.mustache', userdataData));
+
+    if (secretsmanagerEnabled) {
+      secretsmanager.Secret.fromSecretNameV2(this, 'ZillaPlus-SecretsCertificate', context.public.certificate);
+    }
+
+    if (nitroEnclavesEnabled) {
+      acm.Certificate.fromCertificateArn(this, 'ZillaPlus-AcmCertificate', context.public.certificate);
+    }
 
     const machineImage = context.ami
       ? ec2.MachineImage.genericLinux({
@@ -299,6 +325,45 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
 
+    const autoTopics: string[] = context.mappings
+      .filter((mapping: { automatic: boolean; }) => mapping.automatic)
+      .map((mapping: { topic: any; }) => mapping.topic);
+
+    if (autoTopics.length > 0)
+    {
+      userdata.addCommands(
+        `wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz`,
+        `tar -xzf kafka_2.13-3.5.1.tgz`,
+        `cd kafka_2.13-3.5.1`,
+        `SECRET_STRING=$(aws secretsmanager get-secret-value \
+          --secret-id ${context.msk.credentials.sasl} \
+          --query SecretString \
+          --output text)`,
+        `USERNAME=$(echo $SECRET_STRING | jq -r '.username')`,
+        `PASSWORD=$(echo $SECRET_STRING | jq -r '.password')`,
+
+        `cat <<EOF> client.properties`,
+        `sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;`,
+        `security.protocol=SASL_SSL`,
+        `sasl.mechanism=SCRAM-SHA-512`,
+        `EOF`);
+
+      autoTopics.forEach((topic: string) =>
+        userdata.addCommands(
+          `./bin/kafka-topics.sh \
+            --bootstrap-server ${context.msk.servers} \
+            --command-config client.properties \
+            --create --if-not-exists \
+            --topic ${topic} \
+            --replication-factor ${context.capacity} \
+            --partitions 3 \
+            --config 'cleanup.policy=compact'`));
+
+      userdata.addCommands(
+          `rm client.properties`
+      );
+    }
+  
     const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
       machineImage: machineImage,
       instanceType: new ec2.InstanceType(context.instanceType),
@@ -306,15 +371,15 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       nitroEnclaveEnabled: nitroEnclavesEnabled,
       securityGroup: securityGroup,
       keyPair: keyPair,
-      userData: ec2.UserData.custom(userdata)
+      userData: userdata
     });
 
     const loadBalancer = new elbv2.NetworkLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
-      internetFacing: false,
-      ipAddressType: IpAddressType.IPV4,
+      internetFacing: true, // Internet Facing
+      ipAddressType: elbv2.IpAddressType.IPV4,
       vpc: vpc,
       vpcSubnets: subnets,
-      // securityGroups: [securityGroup],
+      securityGroups: [securityGroup],
       // enforceSecurityGroupInboundRulesOnPrivateLinkTraffic: false
     });
 
@@ -322,13 +387,13 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       protocol: elbv2.Protocol.TCP,
       port: Number(externalPort),
       vpc: vpc,
-      targetType: TargetType.INSTANCE
+      targetType: elbv2.TargetType.INSTANCE
     });
 
     loadBalancer.addListener(`TCP-${externalPort}`, {
       port: Number(externalPort),
       protocol: elbv2.Protocol.TCP,
-      defaultAction: NetworkListenerAction.forward([targetGroup])
+      defaultAction: elbv2.NetworkListenerAction.forward([targetGroup])
     })
 
     const autoScalingGroup = new autoscaling.AutoScalingGroup(this, `ZillaPlus-AutoScalingGroup`, {
@@ -341,26 +406,19 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
-    const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
-      acceptanceRequired: true,
-      vpcEndpointServiceLoadBalancers: [loadBalancer]
-    });
-
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
-    cdk.Tags.of(vpceService).add('Name', `ZillaPlus-${id}`);
 
-    new cdk.CfnOutput(this, 'VpcEndpointServiceId', 
-    { 
-      description: "ID of the VPC Endpoint Service",
-      value: vpceService.vpcEndpointServiceId
-    });
+    new cdk.CfnOutput(this, 'WebServersDnsWildcard', 
+      { 
+        description: "Web Servers DNS wildcard",
+        value: externalWildcardDNS
+      });
 
-    new cdk.CfnOutput(this, 'VpcEndpointServiceName', 
-    { 
-      description: "Name of the VPC Endpoint Service",
-      value: vpceService.vpcEndpointServiceName,
-      exportName: `${id}-VpcEndpointServiceName`
-    });
+    new cdk.CfnOutput(this, 'LoadBalancerDnsName', 
+      { 
+        description: "NetworkLoadBalancer DNS name",
+        value: loadBalancer.loadBalancerDnsName
+      });
   }
 
   private renderMustache(filename: string, data: object): string
@@ -370,3 +428,4 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     return Mustache.render(template, data);
   }
 }
+

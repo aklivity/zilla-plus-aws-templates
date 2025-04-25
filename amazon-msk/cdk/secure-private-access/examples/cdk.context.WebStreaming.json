@@ -1,0 +1,25 @@
+{
+  "WebStreaming":
+  {
+    "vpcId": "<your Amazon MSK Provisioned VPC ID>",
+    "subnetIds": [
+      "<your Amazon MSK Provisioned subnetId-1>, defaults to VPC public subnetIds",
+      "<your Amazon MSK Provisioned subnetId-2>, defaults to VPC public subnetIds"
+    ],
+    "msk": {
+      "servers": "<your Amazon MSK Provisioned bootstrap servers>",
+      "credentials": "<Secret Name associated with your MSK cluster>"
+    },
+    "public":
+    {
+      "certificate": "<your public tls certificate key ARN>",
+      "server": "https://your.custom.domain:7143/"
+    },
+    "mappings": 
+    [
+      {
+        "topic": "<your topic>"
+      }
+    ]
+  }
+}

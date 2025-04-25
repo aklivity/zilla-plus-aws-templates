@@ -1,10 +1,10 @@
 import * as cdk from 'aws-cdk-lib';
-import { SecurePublicAccessStack } from '../lib/SecurePublicAccessStack';
+import { WebStreamingStack } from '../lib/WebStreamingStack';
 import { Template } from 'aws-cdk-lib/assertions';
 
-test('Secure Public Access stack created', () => {
+test('Web Streaming Stack created', () => {
 
-  const app = new cdk.App({
+  const app = new cdk.App( {
     context: {
       "vpc-provider:account=12345678:filter.vpc-id=vpc-12345:region=us-east-1:returnAsymmetricSubnets=true": {
         "vpcId": "vpc-12345",
@@ -32,26 +32,33 @@ test('Secure Public Access stack created', () => {
           }
         ]
       },
-      "SecurePublicAccess": {
+      "WebStreaming":
+      {
         "vpcId": "vpc-12345",
-        "subnetIds": ["subnet-1", "subnet-2"],
-        "internal": {
-          "servers": "b-1.mymskcluster.****.us-east-1.amazonaws.com:9094"
+        "msk":
+        {
+          "servers": "b-1.mymskcluter.****.us-east-1.amazonaws.com:9096",
+          "credentials": "AmazonMSK_Alice"
         },
-        "external": {
-          "servers": "*.example.aklivity.io:9094",
+        "public":
+        {
+          "servers": "web.test.example.com:7143",
           "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
         },
+        "mappings": 
+        [
+          {"topic": "pets"}
+        ],
         "ami": "ami-1234"
-      },
+      }
     }
   });
 
-  const stack = new SecurePublicAccessStack(app, 'SecurePublicAccess', {
-    env: {
-      account: '12345678',
-      region: 'us-east-1'
-    }
+  const stack = new WebStreamingStack(app, 'WebStreaming', {
+      env: {
+          account: '12345678',
+          region: 'us-east-1'
+      }
   });
 
   const template = Template.fromStack(stack);
@@ -71,38 +78,39 @@ test('Secure Public Access stack created', () => {
   });
 
   template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
-    Port: 9094,
-    Protocol: "TCP",
-    VpcId: "vpc-12345"
+      Port: 7143,
+      Protocol: `TCP`,
+      VpcId: `vpc-12345`
   });
 
   template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
-    LoadBalancerArn:
-    {
-      Ref: "ZillaPlusLoadBalancer4C8A1454"
-    },
-    Port: 9094,
-    Protocol: "TCP",
+      LoadBalancerArn:
+      {
+          Ref: `ZillaPlusLoadBalancer4C8A1454`
+      },
+      Port: 7143,
+      Protocol: `TCP`,
   });
+  
 
   template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
-    IpAddressType: "ipv4",
-    Scheme: "internet-facing",
-    Subnets: [
-      "subnet-1",
-      "subnet-2"
-    ],
-    Type: "network"
+      IpAddressType: `ipv4`,
+      Scheme: `internet-facing`,
+      Subnets: [
+        "subnet-1",
+        "subnet-2"
+      ],
+      Type: `network`
   });
 
   template.hasResourceProperties('AWS::EC2::LaunchTemplate', {
-    LaunchTemplateData:
-    {
-      EnclaveOptions:
+      LaunchTemplateData:
       {
-        Enabled: true
+        EnclaveOptions:
+        {
+          Enabled: true
+        },
+        ImageId: `ami-1234`
       },
-      ImageId: "ami-1234"
-    },
   });
 });
