@@ -93,12 +93,6 @@ bindings:
   tcp_client:
     type: tcp
     kind: client
-    options:
-      host: '*'
-      port: {{internal.port}}
     telemetry:
       metrics:
         - stream.*
-    routes:
-      - when:
-        - authority: '{{internal.authority}}'
