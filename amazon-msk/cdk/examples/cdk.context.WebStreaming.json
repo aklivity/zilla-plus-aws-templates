@@ -13,7 +13,7 @@
     "public":
     {
       "certificate": "<your public tls certificate key ARN>",
-      "server": "https://your.custom.domain:7143/"
+      "servers": "*.your.custom.domain:7143"
     },
     "mappings": 
     [
