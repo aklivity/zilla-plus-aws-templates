@@ -15,8 +15,13 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION
 };
 
-new MskServerlessClusterStack(app, 'MskServerlessCluster', { env: env });
-new MskProvisionedClusterStack(app, 'MskProvisionedCluster', { env: env });
+if (app.node.tryGetContext('MskServerlessCluster')) {
+  new MskServerlessClusterStack(app, 'MskServerlessCluster', { env: env });
+}
+
+if (app.node.tryGetContext('MskProvisionedCluster')) {
+  new MskProvisionedClusterStack(app, 'MskProvisionedCluster', { env: env });
+}
 
 if (app.node.tryGetContext('SecurePrivateAccess')) {
   new SecurePrivateAccessStack(app, 'SecurePrivateAccess', { env: env });
