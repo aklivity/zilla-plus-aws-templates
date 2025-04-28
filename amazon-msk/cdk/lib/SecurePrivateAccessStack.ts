@@ -18,11 +18,11 @@ interface TemplateData {
 }
 
 interface SecurePrivateAccessInternalContext {
-  server: string
+  servers: string
 }
 
 interface SecurePrivateAccessExternalContext {
-  server: string,
+  servers: string,
   certificate: string
 }
 
@@ -77,10 +77,10 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
 
-    const [internalServer, internalPort] = context.internal.server.split(',')[0].split(':');
+    const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
     const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
 
-    const [externalServer, externalPort] = context.external.server.split(',')[0].split(':');
+    const [externalServer, externalPort] = context.external.servers.split(',')[0].split(':');
     const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
 
     // zilla.yaml template data

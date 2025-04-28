@@ -88,11 +88,11 @@ Set the Subnet IDs for Zilla Plus via `cdk.context.json`, in the `SecurePrivateA
 ```json
     "internal":
     {
-      "server": "<your Amazon MSK Serverless bootstrap server>"
+      "servers": "<your Amazon MSK Serverless bootstrap servers including port>"
     }
 ```
 
-#### `server`: MSK Serverless bootstrap server
+#### `servers`: MSK Serverless bootstrap servers
 
 To get the bootstrap servers of the MSK Serverless Cluster run:
 
@@ -103,25 +103,25 @@ aws kafka get-bootstrap-brokers \
     --output json
 ```
 
-Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `internal` `server` variable.
+Set the `IAM Bootstrap Server` for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `internal` `servers` variable.
 
 ### `external` Custom domain variables
 
 ```json
     "external":
     {
-      "server": "<your custom domain bootstrap server>",
+      "servers": "<your custom domain bootstrap server including port>",
       "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
 ```
 
-#### `server`: Custom domain bootstrap server
+#### `servers`: Custom domain bootstrap server
 
-This variable defines the external bootstrap server to be used by Kafka clients in the format `hostname:port`.
+This variable defines the external bootstrap servers to be used by Kafka clients in the format `hostname:port`.
 The external bootstrap server name should match the custom domain wildcard DNS pattern of the external TLS certificate.
 The external bootstrap server port should match the internal bootstrap server port.
 
-Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `server` variable.
+Set the external bootstrap server for Zilla Plus via `cdk.context.json`, in the `SecurePrivateAccess` `external` `servers` variable.
 
 #### `certificate`: Custom domain TLS Certificate ARN
 

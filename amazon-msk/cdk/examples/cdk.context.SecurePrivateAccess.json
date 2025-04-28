@@ -7,10 +7,10 @@
       "<your Amazon MSK Serverless subnetId-2>, defaults to VPC private subnetIds"
     ],
     "internal": {
-      "server": "<your Amazon MSK Serverless bootstrap server>"
+      "servers": "<your Amazon MSK Serverless bootstrap servers including port>"
     },
     "external": {
-      "server": "<your custom domain bootstrap server>",
+      "servers": "<your public wildcard servers including port>",
       "certificate": "<your custom domain wildcard tls certificate key ARN>"
     }
   }

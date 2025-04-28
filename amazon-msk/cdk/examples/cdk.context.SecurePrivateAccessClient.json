@@ -6,6 +6,6 @@
       "<your remote client subnetId-1, defaults to available subnets>"
     ],
     "vpceServiceName": "<VPC Endpoint Service name, defaults to exported SecurePrivateAccess.VpcEndpointServiceName stack output>",
-    "server": "<your custom domain bootstrap server>"
+    "servers": "<your custom domain bootstrap servers including port>"
   }
 }

@@ -45,11 +45,11 @@ Set the VPC ID where Kafka clients are to be deployed via `cdk.context.json`, in
 
 Set the Subnet IDs where Kafka clients are to be deployed via `cdk.context.json`, in the `SecurePrivateAccessClient` `subnetIds` variable.
 
-### `server`: Custom domain bootstrap server
+### `servers`: Custom domain bootstrap servers
 
-This variable defines the bootstrap server to be used by Kafka clients in the format `hostname:port`.
+This variable defines the bootstrap servers to be used by Kafka clients in the format `hostname:port`.
 
-Set the bootstrap server for Kafka clients via `cdk.context.json`, in the `SecurePrivateAccessClient` `server` variable.
+Set the bootstrap servers for Kafka clients via `cdk.context.json`, in the `SecurePrivateAccessClient` `server` variable.
 
 ### `vpceServiceName` Zilla Plus VPC Endpoint Service Name
 

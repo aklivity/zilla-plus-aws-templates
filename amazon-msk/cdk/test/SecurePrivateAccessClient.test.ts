@@ -37,7 +37,7 @@ test('SecurePrivateAccessStackClient stack created', () => {
         "subnetIds": [
           "subnet-1"
         ],
-        "server": "boot.example.aklivity.io:9098"
+        "servers": "boot.example.aklivity.io:9098"
       }
     }
   });

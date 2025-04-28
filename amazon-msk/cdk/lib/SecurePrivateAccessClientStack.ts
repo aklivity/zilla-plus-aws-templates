@@ -7,7 +7,7 @@ import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
 interface SecurePrivateAccessClientContext {
   vpcId: string,
   subnetIds: Array<string>,
-  server: string,
+  servers: string,
   vpceServiceName?: string
 }
 
@@ -21,7 +21,7 @@ export class SecurePrivateAccessClientStack extends cdk.Stack {
     // default context values
     context.vpceServiceName ??= cdk.Fn.importValue("SecurePrivateAccess-VpcEndpointServiceName");
 
-    const [server, port] = context.server.split(',')[0].split(':');
+    const [server, port] = context.servers.split(',')[0].split(':');
 
     const vpc = ec2.Vpc.fromLookup(this, 'ClientVpc', { vpcId: context.vpcId });
     const subnets = vpc.selectSubnets({

@@ -38,11 +38,11 @@ test('SecurePrivateAccess stack created', () => {
         "subnetIds": ["subnet-1", "subnet-2"],
         "internal":
         {
-          "server": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098"
+          "servers": "boot-abcd.c1.kafka-serverless.us-east-1.amazonaws.com:9098"
         },
         "external":
         {
-          "server": "boot.example.aklivity.io:9098",
+          "servers": "boot.example.aklivity.io:9098",
           "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
         },
         "ami": "ami-1234"
