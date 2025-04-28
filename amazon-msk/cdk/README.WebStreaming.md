@@ -304,7 +304,7 @@ To enable the JWT authentication and API access control, you need to provide the
 
 ### Enable Glue Schema Registry
 
-To enable the Glue Schema Registry for schema fetching, set the context variable `glueRegistry` to the name of the Glue Registry.
+To enable the Glue Schema Registry for schema fetching, set the context variable `glue` `registry` to the name of the Glue Registry.
 
 1. List all Glue Registries:
 
