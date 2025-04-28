@@ -148,7 +148,7 @@ export class WebStreamingStack extends cdk.Stack {
       securityGroup.addIngressRule(
         ec2.Peer.anyIpv4(),
         ec2.Port.tcp(Number(externalPort)),
-        'Allow inbound traffic on MQTT port');
+        'Allow inbound traffic on HTTPS port');
     }
       
     let role;
