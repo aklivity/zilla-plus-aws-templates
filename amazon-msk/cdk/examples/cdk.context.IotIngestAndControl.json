@@ -1,0 +1,22 @@
+{
+  "IotIngestAndControl":
+  {
+    "vpcId": "<your Amazon MSK Provisioned VPC ID>",
+    "subnetIds": [
+      "<your Amazon MSK Provisioned subnetId-1>, defaults to VPC public subnetIds",
+      "<your Amazon MSK Provisioned subnetId-2>, defaults to VPC public subnetIds"
+    ],
+    "msk":
+    {
+      "servers": "<your SASL/SCRAM MSK Bootstrap Servers>",
+      "credentials": {
+        "sasl": "<SASL secret Name associated with your MSK cluster>"
+      }
+    },
+    "public":
+    {
+      "servers": "<your public wildcard servers including port>",
+      "certificate": "<your public tls certificate key ARN>"
+    }
+  }
+}

@@ -6,36 +6,20 @@ on:
     branches: [ main, 'feature/**' ]
   workflow_dispatch:
 jobs:
-  secure-public-access:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false
-          sparse-checkout: amazon-msk/cdk/secure-public-access
+          sparse-checkout: amazon-msk/cdk
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Install modules
-        working-directory: amazon-msk/cdk/secure-public-access
+        working-directory: amazon-msk/cdk
         run: npm install
       - name: Run tests
-        working-directory: amazon-msk/cdk/secure-public-access
-        run: npm run test
-  secure-private-access:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout-cone-mode: false
-          sparse-checkout: amazon-msk/cdk/secure-private-access
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install modules
-        working-directory: amazon-msk/cdk/secure-private-access
-        run: npm install
-      - name: Run tests
-        working-directory: amazon-msk/cdk/secure-private-access
+        working-directory: amazon-msk/cdk
         run: npm run test
 
