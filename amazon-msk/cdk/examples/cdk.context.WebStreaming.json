@@ -8,7 +8,10 @@
     ],
     "msk": {
       "servers": "<your Amazon MSK Provisioned bootstrap servers>",
-      "credentials": "<Secret Name associated with your MSK cluster>"
+      "credentials":
+      {
+        "sasl": "<Secret Name associated with your MSK cluster>"
+      }
     },
     "public":
     {
