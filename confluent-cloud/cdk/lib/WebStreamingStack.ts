@@ -50,6 +50,7 @@ interface WebStreamingPublicContext {
 
 interface WebStreamingMappingContext {
   topic: string;
+  automatic: boolean;
   path?: string;
 }
 
@@ -91,7 +92,7 @@ interface WebStreamingContext {
   instanceType?: string,
   sshKey?: string,
   ami?: string,
-  kafkaTopicCreationDisabled?: boolean
+  version?: string
 }
 
 export class WebStreamingStack extends cdk.Stack {
@@ -107,6 +108,8 @@ export class WebStreamingStack extends cdk.Stack {
     const cloudwatchEnabled: boolean =
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
+
+    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
 
     // apply context defaults
     context.capacity ??= 2;
@@ -127,15 +130,12 @@ export class WebStreamingStack extends cdk.Stack {
       mappings: []
     };
 
-    const mappings = context.mappings;
-
-    mappings.forEach(mapping => {
-      if (!mapping.path) {
-        mapping.path = `/${mapping.topic}`;
-      }
+    context.mappings ??= [];
+    context.mappings.forEach((mapping: WebStreamingMappingContext) => {
+      mapping.automatic ??= true;
+      mapping.path ??= `/${mapping.topic}`;
     });
 
-    const kafkaTopics: string[] = mappings.map((mapping: { topic: any; }) => mapping.topic);
 
     context.vpc ??= { cidr: '10.0.0.0/16' };
     context.subnets ??= { private: { cidrMask: 24 }, public: { cidrMask: 24 } };
@@ -403,9 +403,7 @@ export class WebStreamingStack extends cdk.Stack {
     }
 
 
-    zillaYamlData.mappings = mappings;
-
-    const kafkaTopicCreationDisabled = context.kafkaTopicCreationDisabled ?? false;
+    zillaYamlData.mappings = context.mappings;
 
     let userdataData = {
       stack: `${id}`,
@@ -432,57 +430,49 @@ export class WebStreamingStack extends cdk.Stack {
       ? fs.readFileSync(zillaYamlPath, 'utf-8')
       : this.renderMustache('WebStreaming/zilla.yaml.mustache', zillaYamlData);
 
-    let kafkaTopicCreationCommand = "";
-    if (!kafkaTopicCreationDisabled) {
-      let firstTopicCommand = `./kafka-topics.sh --create --if-not-exists --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopics[0]} --config 'cleanup.policy=compact'`;
-      let topicsCommand = "";
-      kafkaTopics.slice(1).forEach((t: String) => {
-      topicsCommand = topicsCommand.concat(`
-  ./kafka-topics.sh --create --if-not-exists --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${t} --config 'cleanup.policy=compact'`);
-      });
-
-        kafkaTopicCreationCommand = `
-wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
-tar -xzf kafka_2.13-3.5.1.tgz
-cd kafka_2.13-3.5.1/libs
-wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
-cd ../bin
-SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${credentialsSecretName} --query SecretString --output text)
-USERNAME=$(echo $SECRET_STRING | jq -r '.username')
-PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
-
-cat <<EOF > client.properties
-sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='$USERNAME' password='$PASSWORD';
-security.protocol=SASL_SSL
-sasl.mechanism=PLAIN
-EOF
-
-cat <<EOF > createTopics.sh
-#!/bin/bash
-
-while true; do
-  ${firstTopicCommand} 2>&1 && break
-
-  sleep 2
-done
-
-${topicsCommand}
-
-EOF
-
-chmod +x createTopics.sh
-./createTopics.sh
-
-        `;
-      }
-
     userdataData.yaml = {
       ...userdataData.yaml,
-      zilla: zillaYaml,
-      kafkaTopicCreation: kafkaTopicCreationCommand
+      zilla: zillaYaml
     }
+    const userdata: ec2.UserData = ec2.UserData.custom(this.renderMustache('userdata.mustache', userdataData));
 
-    const userdata: string = this.renderMustache('userdata.mustache', userdataData);
+    const autoTopics: string[] = context.mappings
+      .filter((mapping: { automatic: boolean; }) => mapping.automatic)
+      .map((mapping: { topic: any; }) => mapping.topic);
+
+    if (autoTopics.length > 0)
+    {
+      userdata.addCommands(
+        `wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz`,
+        `tar -xzf kafka_2.13-3.5.1.tgz`,
+        `cd kafka_2.13-3.5.1`,
+        `SECRET_STRING=$(aws secretsmanager get-secret-value \
+          --secret-id ${context.confluentCloud.credentials} \
+          --query SecretString \
+          --output text)`,
+        `USERNAME=$(echo $SECRET_STRING | jq -r '.username')`,
+        `PASSWORD=$(echo $SECRET_STRING | jq -r '.password')`,
+
+        `cat <<EOF> client.properties`,
+        `sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username='$USERNAME' password='$PASSWORD';`,
+        `security.protocol=SASL_SSL`,
+        `sasl.mechanism=PLAIN`,
+        `EOF`);
+
+      autoTopics.forEach((topic: string) =>
+        userdata.addCommands(
+          `./bin/kafka-topics.sh \
+            --bootstrap-server ${context.confluentCloud.servers} \
+            --command-config client.properties \
+            --create --if-not-exists \
+            --topic ${topic} \
+            --partitions 3 \
+            --config 'cleanup.policy=compact'`));
+
+      userdata.addCommands(
+          `rm client.properties`
+      );
+    }
 
     if (secretsmanagerEnabled) {
       secretsmanager.Secret.fromSecretNameV2(this, 'ZillaPlus-SecretsCertificate', context.public.certificate);
@@ -492,17 +482,11 @@ chmod +x createTopics.sh
       acm.Certificate.fromCertificateArn(this, 'ZillaPlus-AcmCertificate', context.public.certificate);
     }
 
-    const machineImage = context.ami ?
-      ec2.MachineImage.genericLinux({
+    const machineImage = context.ami
+    ? ec2.MachineImage.genericLinux({
         [cdk.Stack.of(this).region]: context.ami
       })
-      : ec2.MachineImage.lookup({
-          name: 'Aklivity Zilla Plus *',
-          filters: {
-            'product-code': ['6g48l3otesafppzwzann2cfgo'],
-            'is-public': ['true'],
-          },
-        });
+    : ec2.MachineImage.fromSsmParameter(`/aws/service/marketplace/prod-e7nsxirtspuaa/${context.version}`);
     
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
 
@@ -514,7 +498,7 @@ chmod +x createTopics.sh
       nitroEnclaveEnabled: nitroEnclavesEnabled,
       securityGroup: securityGroup,
       keyPair: keyPair,
-      userData: ec2.UserData.custom(userdata)
+      userData: userdata
     });
 
     const loadBalancer = new elbv2.NetworkLoadBalancer(this, `ZillaPlus-LoadBalancer`, {

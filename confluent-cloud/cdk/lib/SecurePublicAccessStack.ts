@@ -74,7 +74,8 @@ interface SecurePublicAccessContext {
   capacity?: number,
   instanceType?: string,
   sshKey?: string,
-  ami?: string
+  ami?: string,
+  version?: string
 }
 
 export class SecurePublicAccessStack extends cdk.Stack {
@@ -90,6 +91,8 @@ export class SecurePublicAccessStack extends cdk.Stack {
     const cloudwatchEnabled: boolean =
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
+
+    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
 
     // apply context defaults
     context.capacity ??= 2;
@@ -421,18 +424,12 @@ export class SecurePublicAccessStack extends cdk.Stack {
       acm.Certificate.fromCertificateArn(this, 'ZillaPlus-AcmCertificate', context.external.certificate);
     }
 
-    const machineImage = context.ami ?
-      ec2.MachineImage.genericLinux({
+    const machineImage = context.ami
+    ? ec2.MachineImage.genericLinux({
         [cdk.Stack.of(this).region]: context.ami
       })
-      : ec2.MachineImage.lookup({
-          name: 'Aklivity Zilla Plus *',
-          filters: {
-            'product-code': ['6g48l3otesafppzwzann2cfgo'],
-            'is-public': ['true'],
-          },
-        });
-    
+    : ec2.MachineImage.fromSsmParameter(`/aws/service/marketplace/prod-e7nsxirtspuaa/${context.version}`);
+
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
 
     const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {

@@ -47,6 +47,7 @@ interface IotIngestAndControlPublicContext {
 }
 
 interface IotIngestAndControlTopicsContext {
+  automatic: boolean,
   sessions?: string,
   retained?: string,
   messages?: string
@@ -82,7 +83,7 @@ interface IotIngestAndControlContext {
   instanceType?: string,
   sshKey?: string,
   ami?: string,
-  kafkaTopicCreationDisabled?: boolean
+  version?: string
 }
 
 export class IotIngestAndControlStack extends cdk.Stack {
@@ -98,6 +99,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
     const cloudwatchEnabled: boolean =
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
+
+    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
 
     // apply context defaults
     context.capacity ??= 2;
@@ -361,18 +364,17 @@ export class IotIngestAndControlStack extends cdk.Stack {
       }
     }
 
-    const topics = context.topics;
-    const kafkaTopicMqttSessions = topics?.sessions ?? "mqtt-sessions";
-    const kafkaTopicMqttRetained = topics?.retained ?? "mqtt-retained";
-    const kafkaTopicMqttMessages = topics?.messages ?? "mqtt-messages";
+    context.topics ??= { automatic: true, sessions: "mqtt-sessions", messages: "mqtt-messages", retained: "mqtt-retained" };
+    context.topics.automatic ??= true;
+    context.topics.sessions ??= "mqtt-sessions";
+    context.topics.messages ??= "mqtt-messages";
+    context.topics.retained ??= "mqtt-retained";
 
     zillaYamlData.topics = {
-      sessions: kafkaTopicMqttSessions,
-      messages: kafkaTopicMqttMessages,
-      retained: kafkaTopicMqttRetained
+      sessions: context.topics.sessions,
+      messages: context.topics.messages,
+      retained: context.topics.retained
     };
-
-    const kafkaTopicCreationDisabled = context.kafkaTopicCreationDisabled ?? false;
 
     let userdataData = {
       stack: `${id}`,
@@ -399,51 +401,12 @@ export class IotIngestAndControlStack extends cdk.Stack {
       ? fs.readFileSync(zillaYamlPath, 'utf-8')
       : this.renderMustache('IotIngestAndControl/zilla.yaml.mustache', zillaYamlData);
 
-    let kafkaTopicCreationCommand = "";
-    if (!kafkaTopicCreationDisabled) {
-        kafkaTopicCreationCommand = `
-wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
-tar -xzf kafka_2.13-3.5.1.tgz
-cd kafka_2.13-3.5.1/libs
-wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
-cd ../bin
-SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id ${credentialsSecretName} --query SecretString --output text)
-USERNAME=$(echo $SECRET_STRING | jq -r '.username')
-PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
-
-cat <<EOF > client.properties
-sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='$USERNAME' password='$PASSWORD';
-security.protocol=SASL_SSL
-sasl.mechanism=PLAIN
-EOF
-
-cat <<EOF > createTopics.sh
-#!/bin/bash
-
-while true; do
-  ./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact' 2>&1 && break
-
-  sleep 2
-done
-
-./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
-./kafka-topics.sh --create --bootstrap-server ${confluentBootstrapServers} --command-config client.properties --partitions 3 --topic ${kafkaTopicMqttMessages}
-
-EOF
-
-chmod +x createTopics.sh
-./createTopics.sh
-
-        `;
-      }
-
     userdataData.yaml = {
       ...userdataData.yaml,
-      zilla: zillaYaml,
-      kafkaTopicCreation: kafkaTopicCreationCommand
+      zilla: zillaYaml
     }
 
-    const userdata: string = this.renderMustache('userdata.mustache', userdataData);
+    const userdata: ec2.UserData = ec2.UserData.custom(this.renderMustache('userdata.mustache', userdataData));
 
     if (secretsmanagerEnabled) {
       secretsmanager.Secret.fromSecretNameV2(this, 'ZillaPlus-SecretsCertificate', context.public.certificate);
@@ -453,19 +416,59 @@ chmod +x createTopics.sh
       acm.Certificate.fromCertificateArn(this, 'ZillaPlus-AcmCertificate', context.public.certificate);
     }
 
-    const machineImage = context.ami ?
-      ec2.MachineImage.genericLinux({
+    const machineImage = context.ami
+    ? ec2.MachineImage.genericLinux({
         [cdk.Stack.of(this).region]: context.ami
       })
-      : ec2.MachineImage.lookup({
-          name: 'Aklivity Zilla Plus *',
-          filters: {
-            'product-code': ['6g48l3otesafppzwzann2cfgo'],
-            'is-public': ['true'],
-          },
-        });
-    
+    : ec2.MachineImage.fromSsmParameter(`/aws/service/marketplace/prod-e7nsxirtspuaa/${context.version}`);
+
     const keyPair = context.sshKey ? ec2.KeyPair.fromKeyPairName(this, `ZillaPlus-KeyPair`, context.sshKey) : undefined;
+
+    if (context.topics.automatic)
+    {
+      userdata.addCommands(
+        `wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz`,
+        `tar -xzf kafka_2.13-3.5.1.tgz`,
+        `cd kafka_2.13-3.5.1`,
+        `SECRET_STRING=$(aws secretsmanager get-secret-value \
+          --secret-id ${credentialsSecretName} \
+          --query SecretString \
+          --output text)`,
+        `USERNAME=$(echo $SECRET_STRING | jq -r '.username')`,
+        `PASSWORD=$(echo $SECRET_STRING | jq -r '.password')`,
+
+        `cat <<EOF> client.properties`,
+        `sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username='$USERNAME' password='$PASSWORD';`,
+        `security.protocol=SASL_SSL`,
+        `sasl.mechanism=PLAIN`,
+        `EOF`,
+
+        `./bin/kafka-topics.sh \
+          --bootstrap-server ${confluentBootstrapServers} \
+          --command-config client.properties \
+          --create --if-not-exists \
+          --topic ${context.topics.sessions} \
+          --partitions 3 \
+          --config 'cleanup.policy=compact'`,
+
+          `./bin/kafka-topics.sh \
+          --bootstrap-server ${confluentBootstrapServers} \
+          --command-config client.properties \
+          --create --if-not-exists \
+          --topic ${context.topics.retained} \
+          --partitions 3 \
+          --config 'cleanup.policy=compact'`,
+
+          `./bin/kafka-topics.sh \
+          --bootstrap-server ${confluentBootstrapServers} \
+          --command-config client.properties \
+          --create --if-not-exists \
+          --topic ${context.topics.messages} \
+          --partitions 3`,
+
+        `rm client.properties`
+      );
+    }
 
     const launchTemplate = new ec2.LaunchTemplate(this, `ZillaPlus-LaunchTemplate`, {
       machineImage: machineImage,
@@ -475,7 +478,7 @@ chmod +x createTopics.sh
       nitroEnclaveEnabled: nitroEnclavesEnabled,
       securityGroup: securityGroup,
       keyPair: keyPair,
-      userData: ec2.UserData.custom(userdata)
+      userData: userdata
     });
 
     const loadBalancer = new elbv2.NetworkLoadBalancer(this, `ZillaPlus-LoadBalancer`, {
