@@ -87,7 +87,7 @@ interface IotIngestAndControlContext {
 }
 
 export class IotIngestAndControlStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, freeTrial: boolean, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -103,7 +103,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
 
     // apply context defaults
-    context.capacity ??= 2;
+    context.capacity ??= freeTrial ? 1 : 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
 
     const confluentBootstrapServers = context.confluentCloud.servers;

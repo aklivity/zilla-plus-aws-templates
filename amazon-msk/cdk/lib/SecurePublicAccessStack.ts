@@ -60,7 +60,7 @@ interface SecurePublicAccessContext {
 }
 
 export class SecurePublicAccessStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, freeTrial: boolean, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -75,7 +75,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
-    context.capacity ??= 2;
+    context.capacity ??= freeTrial ? 1 : 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
     context.external.trust ??= context.internal.trust;
 
