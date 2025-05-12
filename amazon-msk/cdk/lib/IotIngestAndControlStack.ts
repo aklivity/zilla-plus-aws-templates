@@ -88,7 +88,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     // apply context defaults
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
     context.capacity ??= freeTrial ? 1 : 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.instanceType ??= 'c6i.xlarge';
     context.topics ??= { automatic: true, sessions: "mqtt-sessions", messages: "mqtt-messages", retained: "mqtt-retained" };
     context.topics.automatic ??= true;
     context.topics.sessions ??= "mqtt-sessions";

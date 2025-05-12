@@ -113,7 +113,7 @@ export class WebStreamingStack extends cdk.Stack {
 
     // apply context defaults
     context.capacity ??= freeTrial ? 1 : 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.instanceType ??= 'c6i.xlarge';
 
     const confluentBootstrapServers = context.confluentCloud.servers;
     const [kafkaHost, kafkaPort] = confluentBootstrapServers.split(',')[0].split(':');
