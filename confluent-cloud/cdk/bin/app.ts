@@ -5,6 +5,7 @@ import { SecurePublicAccessStack } from '../lib/SecurePublicAccessStack';
 import { IotIngestAndControlStack } from '../lib/IotIngestAndControlStack';
 import { WebStreamingStack } from '../lib/WebStreamingStack';
 import { MarketplaceAgreementClient, GetAgreementTermsCommand, SearchAgreementsCommand } from "@aws-sdk/client-marketplace-agreement";
+import { StackProps } from 'aws-cdk-lib';
 
 
 const app = new cdk.App();
@@ -13,6 +14,11 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION
 };
 
+
+export interface ZillaPlusStackProps extends StackProps {
+  freeTrial: boolean;
+}
+
 main();
 
 async function main() {
@@ -20,15 +26,15 @@ async function main() {
   let freeTrial = await checkFreeTrial();
 
   if (app.node.tryGetContext('SecurePublicAccess')) {
-    new SecurePublicAccessStack(app, 'SecurePublicAccess', freeTrial, { env: env });
+    new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('IotIngestAndControl')) {
-    new IotIngestAndControlStack(app, 'IotIngestAndControl', freeTrial, { env: env });
+    new IotIngestAndControlStack(app, 'IotIngestAndControl', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('WebStreaming')) {
-    new WebStreamingStack(app, 'WebStreaming', freeTrial, { env: env });
+    new WebStreamingStack(app, 'WebStreaming', { env: env, freeTrial: freeTrial });
   }
 
   async function checkFreeTrial(): Promise<boolean> {

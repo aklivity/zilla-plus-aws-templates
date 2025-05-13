@@ -8,6 +8,7 @@ import fs =  require("fs");
 import * as path from 'path';
 import { LogGroup } from 'aws-cdk-lib/aws-logs';
 import { IpAddressType, NetworkListenerAction, TargetType } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -56,7 +57,7 @@ interface SecurePrivateAccessContext {
 }
 
 export class SecurePrivateAccessStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, freeTrial: boolean, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -74,7 +75,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
-    context.capacity ??= freeTrial ? 1 : 2;
+    context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');

@@ -9,12 +9,17 @@ import { MskProvisionedClusterStack } from '../lib/MskProvisionedClusterStack';
 import { IotIngestAndControlStack } from '../lib/IotIngestAndControlStack';
 import { WebStreamingStack } from '../lib/WebStreamingStack';
 import { MarketplaceAgreementClient, GetAgreementTermsCommand, SearchAgreementsCommand } from "@aws-sdk/client-marketplace-agreement";
+import { StackProps } from 'aws-cdk-lib';
 
 const app = new cdk.App();
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION
+  region: process.env.CDK_DEFAULT_REGION,
 };
+
+export interface ZillaPlusStackProps extends StackProps {
+  freeTrial: boolean;
+}
 
 main();
 
@@ -31,7 +36,7 @@ async function main() {
   }
 
   if (app.node.tryGetContext('SecurePrivateAccess')) {
-    new SecurePrivateAccessStack(app, 'SecurePrivateAccess', freeTrial, { env: env });
+    new SecurePrivateAccessStack(app, 'SecurePrivateAccess', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('SecurePrivateAccessClient')) {
@@ -39,15 +44,15 @@ async function main() {
   }
 
   if (app.node.tryGetContext('SecurePublicAccess')) {
-    new SecurePublicAccessStack(app, 'SecurePublicAccess', freeTrial, { env: env });
+    new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('IotIngestAndControl')) {
-    new IotIngestAndControlStack(app, 'IotIngestAndControl', freeTrial, { env: env });
+    new IotIngestAndControlStack(app, 'IotIngestAndControl', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('WebStreaming')) {
-    new WebStreamingStack(app, 'WebStreaming', freeTrial, { env: env });
+    new WebStreamingStack(app, 'WebStreaming', { env: env, freeTrial: freeTrial });
   }
 
   async function checkFreeTrial(): Promise<boolean> {

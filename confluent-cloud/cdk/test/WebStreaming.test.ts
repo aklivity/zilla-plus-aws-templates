@@ -45,8 +45,9 @@ test('iot ingest and control stack created', () => {
         "mappings": 
         [
           {"topic": "pets"}
-        ]
-      },
+        ],
+        "ami": "ami-1234"
+      }
     }
   }
   );
@@ -54,7 +55,8 @@ test('iot ingest and control stack created', () => {
     env: {
       account: '12345678',
       region: 'us-east-1'
-    }
+    },
+    freeTrial: false
   });
 
   const template = Template.fromStack(stack);

@@ -12,6 +12,7 @@ import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -79,7 +80,7 @@ interface SecurePublicAccessContext {
 }
 
 export class SecurePublicAccessStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, freeTrial: boolean, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -95,7 +96,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
 
     // apply context defaults
-    context.capacity ??= freeTrial ? 1 : 2;
+    context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
 
