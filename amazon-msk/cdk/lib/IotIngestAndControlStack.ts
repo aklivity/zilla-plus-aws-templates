@@ -10,6 +10,7 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -72,7 +73,7 @@ interface IotIngestAndControlContext {
 }
 
 export class IotIngestAndControlStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -87,8 +88,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
-    context.capacity ??= 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.capacity ??= props?.freeTrial ? 1 : 2;
+    context.instanceType ??= 'c6i.xlarge';
     context.topics ??= { automatic: true, sessions: "mqtt-sessions", messages: "mqtt-messages", retained: "mqtt-retained" };
     context.topics.automatic ??= true;
     context.topics.sessions ??= "mqtt-sessions";

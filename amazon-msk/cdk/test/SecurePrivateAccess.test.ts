@@ -55,7 +55,8 @@ test('SecurePrivateAccess stack created', () => {
     env: {
       account: '12345678',
       region: 'us-east-1'
-    }
+    },
+    freeTrial: false
   });
 
   const template = Template.fromStack(stack);

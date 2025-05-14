@@ -172,11 +172,9 @@ Optionally override the default initial number of instances for Zilla Plus via `
 
 ### `instanceType`: Zilla Plus EC2 Instance Type
 
-> Default: `t3.small` AWS Secrets Manager
+> Default: `c6i.xlarge`
 
-> Default: `c6i.xlarge` AWS Certificate Manager (required by [ACM for Nitro Enclaves])
-
-This variable defines the initial number of Zilla Plus instances.
+This variable defines the type of Zilla Plus instances.
 
 Optionally override the default instance type for Zilla Plus via `cdk.context.json`, in the `IotIngestAndControl` `instanceType` variable.
 
