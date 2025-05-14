@@ -100,8 +100,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
 
-    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
-
+    context.version ??= "latest";
     // apply context defaults
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';

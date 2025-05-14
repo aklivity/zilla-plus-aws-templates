@@ -73,7 +73,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
-    context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
+    context.version ??= "latest";
     context.capacity ??= 2;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
 
