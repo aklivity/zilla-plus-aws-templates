@@ -6,6 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import Mustache = require("mustache");
@@ -75,7 +76,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
-    context.capacity ??= 2;
+    context.capacity ??= 1;
     context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
     context.external.trust ??= context.internal.trust;
 
@@ -362,6 +363,49 @@ export class SecurePublicAccessStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+
+    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    const workerUtilMetric = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.utilization',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(1),
+    });
+
+    const workerCountMetric = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.count',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(1),
+    });
+
+    const overallWorkerUtil = new cw.MathExpression({
+      label: 'OverallWorkerUtil',
+      expression: 'm1 / m2',
+      usingMetrics: {
+        m1: workerUtilMetric,
+        m2: workerCountMetric,
+      },
+    });
+
+    autoScalingGroup.scaleToTrackMetric('WorkerUtilTargetTracking', {
+      metric: overallWorkerUtil,
+      targetValue: 0.70, // 70% utilisation
+      cooldown: cdk.Duration.minutes(2),
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
+      disableScaleIn: true,
+    });
+
+    autoScalingGroup.scaleOnMetric('WorkerUtilScaleIn', {
+      metric: overallWorkerUtil,
+      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+      scalingSteps: [
+        // <10% then remove one instance (down to minCapacity)
+        { upper: 0.10, change: -1 }
+      ],
+      cooldown: cdk.Duration.minutes(2)
+    });
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

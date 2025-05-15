@@ -145,3 +145,5 @@ tsconfig.tsbuildinfo
 !jest.config.js
 !setup.js
 .DS_Store
+
+.idea

@@ -15,6 +15,15 @@ telemetry:
     - stream.closes.received
     - stream.closes.sent
   exporters:
+    aws-cloudwatch0:
+      type: aws-cloudwatch
+      options:
+        metrics:
+          namespace: zilla
+          interval: 20
+        logs:
+          group: zilla-log-group
+          stream: zilla-log-stream
     stdout_logs_exporter:
       type: stdout
 {{#cloudwatch}}
