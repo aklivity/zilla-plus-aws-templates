@@ -370,14 +370,14 @@ export class SecurePublicAccessStack extends cdk.Stack {
       namespace: metricsNamespace,
       metricName: 'engine.worker.utilization',
       statistic: 'Average',
-      period: cdk.Duration.minutes(1),
+      period: cdk.Duration.minutes(5),
     });
 
     const workerCountMetric = new cw.Metric({
       namespace: metricsNamespace,
       metricName: 'engine.worker.count',
       statistic: 'Average',
-      period: cdk.Duration.minutes(1),
+      period: cdk.Duration.minutes(5),
     });
 
     const overallWorkerUtil = new cw.MathExpression({
@@ -389,22 +389,14 @@ export class SecurePublicAccessStack extends cdk.Stack {
       },
     });
 
-    autoScalingGroup.scaleToTrackMetric('WorkerUtilTargetTracking', {
-      metric: overallWorkerUtil,
-      targetValue: 0.70, // 70% utilisation
-      cooldown: cdk.Duration.minutes(2),
-      estimatedInstanceWarmup: cdk.Duration.minutes(2),
-      disableScaleIn: true,
-    });
-
-    autoScalingGroup.scaleOnMetric('WorkerUtilScaleIn', {
+    autoScalingGroup.scaleOnMetric('WorkerUtilStepScaling', {
       metric: overallWorkerUtil,
       adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
       scalingSteps: [
-        // <10% then remove one instance (down to minCapacity)
-        { upper: 0.10, change: -1 }
+        { upper: 0.10, change: -1 },   // utilisation <10 % → remove 1 instance
+        { lower: 0.90, change: +1 }    // utilisation >90 % → add 1 instance
       ],
-      cooldown: cdk.Duration.minutes(2)
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
     });
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
