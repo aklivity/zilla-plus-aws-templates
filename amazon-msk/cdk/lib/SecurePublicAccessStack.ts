@@ -381,7 +381,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
     });
 
     const overallWorkerUtil = new cw.MathExpression({
-      label: 'OverallWorkerUtil',
+      label: 'OverallWorkerUtilization',
       expression: 'm1 / m2',
       usingMetrics: {
         m1: workerUtilMetric,
@@ -389,7 +389,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
       },
     });
 
-    autoScalingGroup.scaleOnMetric('WorkerUtilStepScaling', {
+    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
       metric: overallWorkerUtil,
       adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
       scalingSteps: [
