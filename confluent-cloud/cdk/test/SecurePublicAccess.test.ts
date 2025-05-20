@@ -41,8 +41,9 @@ test('Secure Public Access stack created', () => {
         "external": {
           "servers": "*.example.aklivity.io:9092",
           "certificate": "arn:aws:acm:us-east-1:****:certificate//*********"
-        }
-      },
+        },
+        "ami": "ami-1234"
+      }
     }
   }
   );
@@ -50,7 +51,8 @@ test('Secure Public Access stack created', () => {
     env: {
       account: '12345678',
       region: 'us-east-1'
-    }
+    },
+    freeTrial: false
   });
 
   const template = Template.fromStack(stack);

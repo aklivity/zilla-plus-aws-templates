@@ -12,6 +12,7 @@ import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -87,7 +88,7 @@ interface IotIngestAndControlContext {
 }
 
 export class IotIngestAndControlStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -102,8 +103,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
 
     context.version ??= "latest";
     // apply context defaults
-    context.capacity ??= 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.capacity ??= props?.freeTrial ? 1 : 2;
+    context.instanceType ??= 'c6i.xlarge';
 
     const confluentBootstrapServers = context.confluentCloud.servers;
     const [kafkaHost, kafkaPort] = confluentBootstrapServers.split(',')[0].split(':');
