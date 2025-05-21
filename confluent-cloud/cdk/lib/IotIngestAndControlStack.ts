@@ -101,8 +101,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
 
-    context.version ??= "latest";
     // apply context defaults
+    context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
 
