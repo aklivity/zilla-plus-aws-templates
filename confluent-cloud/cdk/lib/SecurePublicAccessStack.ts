@@ -93,9 +93,8 @@ export class SecurePublicAccessStack extends cdk.Stack {
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
 
-    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
-
     // apply context defaults
+    context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
