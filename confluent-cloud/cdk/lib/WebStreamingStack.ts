@@ -12,6 +12,7 @@ import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import { InterfaceVpcEndpointTarget } from 'aws-cdk-lib/aws-route53-targets';
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -96,7 +97,7 @@ interface WebStreamingContext {
 }
 
 export class WebStreamingStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -109,11 +110,10 @@ export class WebStreamingStack extends cdk.Stack {
       context.cloudwatch?.logs?.group !== undefined ||
       context.cloudwatch?.metrics?.namespace !== undefined;
 
-    context.version ??= "25.4.3"; // TODO "latest" (currently unresolveable)
-
     // apply context defaults
-    context.capacity ??= 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.version ??= "latest";
+    context.capacity ??= props?.freeTrial ? 1 : 2;
+    context.instanceType ??= 'c6i.xlarge';
 
     const confluentBootstrapServers = context.confluentCloud.servers;
     const [kafkaHost, kafkaPort] = confluentBootstrapServers.split(',')[0].split(':');

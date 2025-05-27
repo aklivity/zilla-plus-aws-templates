@@ -10,6 +10,7 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
+import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
@@ -85,7 +86,7 @@ interface WebStreamingContext {
 }
 
 export class WebStreamingStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: ZillaPlusStackProps) {
     super(scope, id, props);
 
     // lookup context
@@ -99,9 +100,9 @@ export class WebStreamingStack extends cdk.Stack {
       context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
-    context.version ??= "25.4.4"; // TODO "latest" (currently unresolveable)
-    context.capacity ??= 2;
-    context.instanceType ??= nitroEnclavesEnabled ? 'c6i.xlarge' : 't3.small';
+    context.version ??= "latest";
+    context.capacity ??= props?.freeTrial ? 1 : 2;
+    context.instanceType ??= 'c6i.xlarge';
     context.mappings ??= [];
     context.mappings.forEach((mapping: WebStreamingMappingContext) => {
       mapping.automatic ??= true;
