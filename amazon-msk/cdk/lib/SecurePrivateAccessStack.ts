@@ -3,6 +3,7 @@ import { Construct, Node } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import * as path from 'path';
@@ -16,6 +17,12 @@ interface TemplateData {
   cloudwatch?: object;
   internal?: object;
   external?: object;
+}
+
+interface ScalingStep {
+  lower?: number;
+  upper?: number;
+  change: number;
 }
 
 interface SecurePrivateAccessInternalContext {
@@ -33,7 +40,8 @@ interface SecurePrivateAccessCloudWatchContext {
 }
 
 interface SecurePrivateAccessCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval: number
 }
 
 interface SecurePrivateAccessCloudWatchLogsContext {
@@ -47,6 +55,7 @@ interface SecurePrivateAccessContext {
   internal: SecurePrivateAccessInternalContext;
   external: SecurePrivateAccessExternalContext;
   cloudwatch?: SecurePrivateAccessCloudWatchContext,
+  scalingSteps?: ScalingStep[],
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -74,6 +83,9 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
+    if (context.cloudwatch && context.cloudwatch.metrics) {
+      context.cloudwatch.metrics.interval = props?.interval ?? 20;
+    }
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
@@ -341,6 +353,44 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+
+    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    const metricWorkerUtilization = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.utilization',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricWorkerCount = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.count',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricOverallWorkerUtilization = new cw.MathExpression({
+      label: 'OverallWorkerUtilization',
+      expression: 'm1 / m2',
+      usingMetrics: {
+        m1: metricWorkerUtilization,
+        m2: metricWorkerCount,
+      },
+    });
+    
+    const scalingSteps = context.scalingSteps ??
+    [
+      { upper: 0.30, change: -1 },
+      { lower: 0.80, change: +2 }
+    ]
+
+    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+      metric: metricOverallWorkerUtilization,
+      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+      scalingSteps,
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
+    });
 
     const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: true,

@@ -11,6 +11,7 @@ import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import { ZillaPlusStackProps } from '../bin/app';
+import * as cw from "aws-cdk-lib/aws-cloudwatch";
 
 interface TemplateData {
   name: string;
@@ -21,6 +22,12 @@ interface TemplateData {
   public?: object;
   kafka?: object;
   jwt?: object;
+}
+
+interface ScalingStep {
+  lower?: number;
+  upper?: number;
+  change: number;
 }
 
 interface WebStreamingMskContext {
@@ -59,7 +66,8 @@ interface WebStreamingCloudWatchContext {
 }
 
 interface WebStreamingCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval: number
 }
 
 interface WebStreamingCloudWatchLogsContext {
@@ -76,6 +84,7 @@ interface WebStreamingContext {
   jwt: WebStreamingJwtContext,
   glue: WebStreamingGlueContext,
   cloudwatch?: WebStreamingCloudWatchContext,
+  scalingSteps?: ScalingStep[],
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -100,6 +109,9 @@ export class WebStreamingStack extends cdk.Stack {
       context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
+    if (context.cloudwatch && context.cloudwatch.metrics) {
+      context.cloudwatch.metrics.interval = props?.interval ?? 20;
+    }
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
@@ -406,6 +418,45 @@ export class WebStreamingStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+    
+    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    const metricWorkerUtilization = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.utilization',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricWorkerCount = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.count',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricOverallWorkerUtilization = new cw.MathExpression({
+      label: 'OverallWorkerUtilization',
+      expression: 'm1 / m2',
+      usingMetrics: {
+        m1: metricWorkerUtilization,
+        m2: metricWorkerCount,
+      },
+    });
+    
+    const scalingSteps = context.scalingSteps ??
+    [
+      { upper: 0.30, change: -1 },
+      { lower: 0.80, change: +2 }
+    ]
+
+    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+      metric: metricOverallWorkerUtilization,
+      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+      scalingSteps,
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
+    });
+
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

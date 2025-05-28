@@ -440,14 +440,11 @@ export class IotIngestAndControlStack extends cdk.Stack {
       },
     });
 
-    const scalingSteps = context.scalingSteps ?? [
-      { 
-        upper: 0.30, change: -1
-      },
-      { 
-        lower: 0.80, change: +2
-      }
-    ];
+    const scalingSteps = context.scalingSteps ??
+    [
+      { upper: 0.30, change: -1 },
+      { lower: 0.80, change: +2 }
+    ]
 
     autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
       metric: metricOverallWorkerUtilization,
