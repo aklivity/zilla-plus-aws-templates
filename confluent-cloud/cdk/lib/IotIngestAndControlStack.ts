@@ -6,6 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -21,6 +22,12 @@ interface TemplateData {
   public?: object;
   topics?: object;
   kafka?: object;
+}
+
+interface ScalingStep {
+  lower?: number;
+  upper?: number;
+  change: number;
 }
 
 interface IotIngestAndControlVpcContext {
@@ -60,7 +67,8 @@ interface IotIngestAndControlCloudWatchContext {
 }
 
 interface IotIngestAndControlCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval: number
 }
 
 interface IotIngestAndControlCloudWatchLogsContext {
@@ -78,6 +86,7 @@ interface IotIngestAndControlContext {
   public: IotIngestAndControlPublicContext;
   topics: IotIngestAndControlTopicsContext;
   cloudwatch?: IotIngestAndControlCloudWatchContext,
+  scalingSteps?: ScalingStep[],
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -102,6 +111,9 @@ export class IotIngestAndControlStack extends cdk.Stack {
       context.cloudwatch?.metrics?.namespace !== undefined;
 
     // apply context defaults
+    if (context.cloudwatch && context.cloudwatch.metrics) {
+      context.cloudwatch.metrics.interval = props?.interval ?? 20;
+    }
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
@@ -338,6 +350,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
@@ -509,6 +522,44 @@ export class IotIngestAndControlStack extends cdk.Stack {
       launchTemplate: launchTemplate,
       minCapacity: context.capacity,
       maxCapacity: 5,
+    });
+
+    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    const metricWorkerUtilization = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.utilization',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricWorkerCount = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.count',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricOverallWorkerUtilization = new cw.MathExpression({
+      label: 'OverallWorkerUtilization',
+      expression: 'm1 / m2',
+      usingMetrics: {
+        m1: metricWorkerUtilization,
+        m2: metricWorkerCount,
+      },
+    });
+
+    const scalingSteps = context.scalingSteps ??
+    [
+      { upper: 0.30, change: -1 },
+      { lower: 0.80, change: +2 }
+    ]
+
+    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+      metric: metricOverallWorkerUtilization,
+      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+      scalingSteps,
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);

@@ -271,6 +271,7 @@ export class WebStreamingStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
@@ -456,7 +457,6 @@ export class WebStreamingStack extends cdk.Stack {
       scalingSteps,
       estimatedInstanceWarmup: cdk.Duration.minutes(2),
     });
-
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

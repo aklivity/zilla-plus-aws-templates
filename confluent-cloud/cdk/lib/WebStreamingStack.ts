@@ -6,6 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cw from "aws-cdk-lib/aws-cloudwatch";
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -23,6 +24,12 @@ interface TemplateData {
   public?: object;
   kafka?: object;
   jwt?: object;
+}
+
+interface ScalingStep {
+  lower?: number;
+  upper?: number;
+  change: number;
 }
 
 interface WebStreamingVpcContext {
@@ -67,7 +74,8 @@ interface WebStreamingCloudWatchContext {
 }
 
 interface WebStreamingCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval?: number
 }
 
 interface WebStreamingCloudWatchLogsContext {
@@ -87,6 +95,7 @@ interface WebStreamingContext {
   jwt: WebStreamingJWTContext,
   glueRegistry?: string,
   cloudwatch?: WebStreamingCloudWatchContext,
+  scalingSteps?: ScalingStep[],
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -358,6 +367,7 @@ export class WebStreamingStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
@@ -532,6 +542,44 @@ export class WebStreamingStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+    
+    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    const metricWorkerUtilization = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.utilization',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricWorkerCount = new cw.Metric({
+      namespace: metricsNamespace,
+      metricName: 'engine.worker.count',
+      statistic: 'Average',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const metricOverallWorkerUtilization = new cw.MathExpression({
+      label: 'OverallWorkerUtilization',
+      expression: 'm1 / m2',
+      usingMetrics: {
+        m1: metricWorkerUtilization,
+        m2: metricWorkerCount,
+      },
+    });
+    
+    const scalingSteps = context.scalingSteps ??
+    [
+      { upper: 0.30, change: -1 },
+      { lower: 0.80, change: +2 }
+    ]
+
+    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+      metric: metricOverallWorkerUtilization,
+      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+      scalingSteps,
+      estimatedInstanceWarmup: cdk.Duration.minutes(2),
+    });
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

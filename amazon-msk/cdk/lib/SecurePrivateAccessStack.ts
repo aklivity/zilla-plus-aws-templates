@@ -244,6 +244,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
