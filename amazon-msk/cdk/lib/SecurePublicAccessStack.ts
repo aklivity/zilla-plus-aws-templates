@@ -85,9 +85,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "latest";
-    if (context.cloudwatch && context.cloudwatch.metrics) {
-      context.cloudwatch.metrics.interval = props?.interval ?? 20;
-    }
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
@@ -241,12 +238,13 @@ export class SecurePublicAccessStack extends cdk.Stack {
       }
   
       const metricsNamespace = context.cloudwatch?.metrics?.namespace;
+      const metricsInterval = context.cloudwatch?.metrics?.interval ?? 20;
       if (metricsNamespace) {
         zillaYamlData.cloudwatch = {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
-            interval: context.cloudwatch.metrics?.interval
+            interval:  metricsInterval
           },
         };
       }
@@ -377,43 +375,46 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
-    const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
+    if (context.cloudwatch.metrics) {
+      const metricsNamespace = context.cloudwatch.metrics.namespace;
 
-    const metricWorkerUtilization = new cw.Metric({
-      namespace: metricsNamespace,
-      metricName: 'engine.worker.utilization',
-      statistic: 'Average',
-      period: cdk.Duration.minutes(5),
-    });
+      const metricWorkerUtilization = new cw.Metric({
+        namespace: metricsNamespace,
+        metricName: 'engine.worker.utilization',
+        statistic: 'Average',
+        period: cdk.Duration.minutes(5),
+      });
 
-    const metricWorkerCount = new cw.Metric({
-      namespace: metricsNamespace,
-      metricName: 'engine.worker.count',
-      statistic: 'Average',
-      period: cdk.Duration.minutes(5),
-    });
+      const metricWorkerCount = new cw.Metric({
+        namespace: metricsNamespace,
+        metricName: 'engine.worker.count',
+        statistic: 'Average',
+        period: cdk.Duration.minutes(5),
+      });
 
-    const metricOverallWorkerUtilization = new cw.MathExpression({
-      label: 'OverallWorkerUtilization',
-      expression: 'm1 / m2',
-      usingMetrics: {
-        m1: metricWorkerUtilization,
-        m2: metricWorkerCount,
-      },
-    });
-    
-    const scalingSteps = context.scalingSteps ??
-    [
-      { upper: 0.30, change: -1 },
-      { lower: 0.80, change: +2 }
-    ]
+      const metricOverallWorkerUtilization = new cw.MathExpression({
+        label: 'OverallWorkerUtilization',
+        expression: 'm1 / m2',
+        usingMetrics: {
+          m1: metricWorkerUtilization,
+          m2: metricWorkerCount,
+        },
+      });
 
-    autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
-      metric: metricOverallWorkerUtilization,
-      adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
-      scalingSteps,
-      estimatedInstanceWarmup: cdk.Duration.minutes(2),
-    });
+      const scalingSteps = context.scalingSteps ??
+        [
+          { upper: 0.30, change: -1 },
+          { lower: 0.80, change: +2 }
+        ]
+
+      autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+        metric: metricOverallWorkerUtilization,
+        adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        scalingSteps,
+        estimatedInstanceWarmup: cdk.Duration.minutes(2),
+        cooldown: cdk.Duration.minutes(3)
+      });
+    }
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 
