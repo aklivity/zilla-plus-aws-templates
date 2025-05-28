@@ -23,6 +23,7 @@ import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-availability-zones";
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
+import { CloudwatchMetricAlarm } from "@cdktf/provider-aws/lib/cloudwatch-metric-alarm";
 
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
@@ -70,7 +71,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
-
 
     let mskPort;
     let mskWildcardDNS;
@@ -606,6 +606,46 @@ systemctl start zilla-plus
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity,
       targetGroupArns: [nlbTargetGroup.arn],
+    });
+
+    const metricsNamespace = zillaPlusContext.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationAlarm-${id}`, {
+      alarmName: `OverallWorkerUtilization-${id}`,
+      comparisonOperator: "GreaterThanThreshold",
+      evaluationPeriods: 2,
+      threshold: 80,
+      alarmDescription: "Overall worker utilization exceeded 80%",
+      metricQuery: [
+        {
+          id: "e1",
+          expression: "m1 / m2 * 100",
+          label: "Overall Worker Utilization",
+          returnData: true
+        },
+        {
+          id: "m1",
+          metric: {
+            metricName: "engine.worker.utilization",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        },
+        {
+          id: "m2",
+          metric: {
+            metricName: "engine.worker.count",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        }
+      ]
     });
 
     new TerraformOutput(this, "NetworkLoadBalancerOutput", {
