@@ -246,7 +246,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
-            interval: 20
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
@@ -404,10 +404,10 @@ export class SecurePublicAccessStack extends cdk.Stack {
     
     const scalingSteps = context.scalingSteps ?? [
       { 
-        upper: 0.30, change: -1 // More conservative on scale-in
+        upper: 0.30, change: -1
       },
       { 
-        lower: 0.80, change: +2 // More aggressive on scale-out
+        lower: 0.80, change: +2
       }
     ];
 

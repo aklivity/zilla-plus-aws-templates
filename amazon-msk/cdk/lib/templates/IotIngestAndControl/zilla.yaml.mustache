@@ -29,6 +29,7 @@ telemetry:
 {{#cloudwatch.metrics}}
         metrics:
           namespace: {{{cloudwatch.metrics.namespace}}}
+          interval: {{{cloudwatch.metrics.interval}}}
 {{/cloudwatch.metrics}}
 {{/cloudwatch}}
 bindings:
