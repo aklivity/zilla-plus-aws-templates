@@ -21,6 +21,12 @@ interface TemplateData {
   external?: object;
 }
 
+interface ScalingStep {
+  lower?: number;
+  upper?: number;
+  change: number;
+}
+
 interface SecurePublicAccessInternalContext {
   servers: string,
   trust: string
@@ -38,7 +44,8 @@ interface SecurePublicAccessCloudWatchContext {
 }
 
 interface SecurePublicAccessCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval: number
 }
 
 interface SecurePublicAccessCloudWatchLogsContext {
@@ -51,7 +58,8 @@ interface SecurePublicAccessContext {
   subnetIds: Array<string>,
   internal: SecurePublicAccessInternalContext;
   external: SecurePublicAccessExternalContext;
-  cloudwatch?: SecurePublicAccessCloudWatchContext,
+  cloudwatch: SecurePublicAccessCloudWatchContext,
+  scalingSteps?: ScalingStep[],
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -77,6 +85,9 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     // apply context defaults
     context.version ??= "latest";
+    if (context.cloudwatch && context.cloudwatch.metrics) {
+      context.cloudwatch.metrics.interval = props?.interval ?? 20;
+    }
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
@@ -235,6 +246,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: 20
           },
         };
       }
@@ -367,36 +379,42 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     const metricsNamespace = context.cloudwatch?.metrics?.namespace ?? 'zilla';
 
-    const workerUtilMetric = new cw.Metric({
+    const metricWorkerUtilization = new cw.Metric({
       namespace: metricsNamespace,
       metricName: 'engine.worker.utilization',
       statistic: 'Average',
       period: cdk.Duration.minutes(5),
     });
 
-    const workerCountMetric = new cw.Metric({
+    const metricWorkerCount = new cw.Metric({
       namespace: metricsNamespace,
       metricName: 'engine.worker.count',
       statistic: 'Average',
       period: cdk.Duration.minutes(5),
     });
 
-    const overallWorkerUtil = new cw.MathExpression({
+    const metricOverallWorkerUtilization = new cw.MathExpression({
       label: 'OverallWorkerUtilization',
       expression: 'm1 / m2',
       usingMetrics: {
-        m1: workerUtilMetric,
-        m2: workerCountMetric,
+        m1: metricWorkerUtilization,
+        m2: metricWorkerCount,
       },
     });
+    
+    const scalingSteps = context.scalingSteps ?? [
+      { 
+        upper: 0.30, change: -1 // More conservative on scale-in
+      },
+      { 
+        lower: 0.80, change: +2 // More aggressive on scale-out
+      }
+    ];
 
     autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
-      metric: overallWorkerUtil,
+      metric: metricOverallWorkerUtilization,
       adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
-      scalingSteps: [
-        { upper: 0.10, change: -1 },   // utilisation <10 % → remove 1 instance
-        { lower: 0.90, change: +1 }    // utilisation >90 % → add 1 instance
-      ],
+      scalingSteps,
       estimatedInstanceWarmup: cdk.Duration.minutes(2),
     });
 

@@ -19,6 +19,7 @@ const env = {
 
 export interface ZillaPlusStackProps extends StackProps {
   freeTrial: boolean;
+  interval: number;
 }
 
 main();

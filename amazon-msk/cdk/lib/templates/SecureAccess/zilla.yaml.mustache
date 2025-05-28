@@ -20,7 +20,7 @@ telemetry:
       options:
         metrics:
           namespace: zilla
-          interval: 20
+          interval: {{{cloudwatch.metrics.interval}}}
         logs:
           group: zilla-log-group
           stream: zilla-log-stream
