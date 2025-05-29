@@ -425,14 +425,14 @@ export class WebStreamingStack extends cdk.Stack {
         namespace: metricsNamespace,
         metricName: 'engine.worker.utilization',
         statistic: 'Average',
-        period: cdk.Duration.minutes(5),
+        period: cdk.Duration.seconds(20),
       });
 
       const metricWorkerCount = new cw.Metric({
         namespace: metricsNamespace,
         metricName: 'engine.worker.count',
         statistic: 'Average',
-        period: cdk.Duration.minutes(5),
+        period: cdk.Duration.seconds(20),
       });
 
       const metricOverallWorkerUtilization = new cw.MathExpression({
