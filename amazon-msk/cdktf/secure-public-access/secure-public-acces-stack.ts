@@ -23,6 +23,7 @@ import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-availability-zones";
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
+import { CloudwatchMetricAlarm } from "@cdktf/provider-aws/lib/cloudwatch-metric-alarm";
 
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
@@ -31,6 +32,7 @@ import Mustache = require("mustache");
 import fs =  require("fs");
 import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 import { CloudwatchLogStream } from "@cdktf/provider-aws/lib/cloudwatch-log-stream";
+import { AutoscalingPolicy } from "@cdktf/aws-cdk/lib/aws/autoscaling-policy";
 
 interface TemplateData {
   name: string;
@@ -70,7 +72,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         throw new Error(`Missing required context variables: ${missingKeys.join(', ')}`);
       }
     }
-
 
     let mskPort;
     let mskWildcardDNS;
@@ -597,7 +598,7 @@ systemctl start zilla-plus
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
+    const zillaAutoScalingGroup = new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: ZillaPlusLaunchTemplate.id,
@@ -606,6 +607,93 @@ systemctl start zilla-plus
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity,
       targetGroupArns: [nlbTargetGroup.arn],
+    });
+
+    const metricsNamespace = zillaPlusContext.cloudwatch?.metrics?.namespace ?? 'zilla';
+
+    new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleOutAlarm-${id}`, {
+      alarmName: `OverallWorkerUtilizationScaleOut-${id}`,
+      comparisonOperator: "GreaterThanThreshold",
+      evaluationPeriods: 2,
+      threshold: 80,
+      alarmDescription: "Overall worker utilization exceeded 80%",
+      metricQuery: [
+        {
+          id: "e1",
+          expression: "m1 / m2 * 100",
+          label: "Overall Worker Utilization",
+          returnData: true
+        },
+        {
+          id: "m1",
+          metric: {
+            metricName: "engine.worker.utilization",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        },
+        {
+          id: "m2",
+          metric: {
+            metricName: "engine.worker.count",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        }
+      ]
+    });
+    
+    new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleInAlarm-${id}`, {
+      alarmName: `OverallWorkerUtilizationScaleIn-${id}`,
+      comparisonOperator: "LessThanThreshold",
+      evaluationPeriods: 2,
+      threshold: 30,
+      alarmDescription: "Overall worker utilization dropped below 30%",
+      metricQuery: [
+        {
+          id: "e1",
+          expression: "m1 / m2 * 100",
+          label: "Overall Worker Utilization (%)",
+          returnData: true
+        },
+        {
+          id: "m1",
+          metric: {
+            metricName: "engine.worker.utilization",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        },
+        {
+          id: "m2",
+          metric: {
+            metricName: "engine.worker.count",
+            namespace: metricsNamespace,
+            period: 300,
+            stat: "Average",
+            unit: "Count",
+            dimensions: {}
+          }
+        }
+      ]
+    });
+    
+    new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
+      name: `OverallWorkerUtilizationScaleIn-${id}`,
+      adjustmentType: "ChangeInCapacity",
+      autoscalingGroupName: zillaAutoScalingGroup.name,
+      scalingAdjustment: -1,
+      cooldown: 120,
+      policyType: "SimpleScaling"
     });
 
     new TerraformOutput(this, "NetworkLoadBalancerOutput", {
