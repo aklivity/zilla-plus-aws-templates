@@ -32,7 +32,7 @@ import Mustache = require("mustache");
 import fs =  require("fs");
 import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 import { CloudwatchLogStream } from "@cdktf/provider-aws/lib/cloudwatch-log-stream";
-import { AutoscalingPolicy } from "@cdktf/aws-cdk/lib/aws/autoscaling-policy";
+import { AutoscalingPolicy } from "@cdktf/provider-aws/lib/autoscaling-policy";
 
 interface TemplateData {
   name: string;
@@ -439,6 +439,7 @@ systemctl start nitro-enclaves-acm.service
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
+      const metricsInterval = cloudwatch?.metrics?.interval ?? 20;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -455,6 +456,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: metricNamespace,
+          interval: metricsInterval
         },
       };
     }
@@ -606,96 +608,111 @@ systemctl start zilla-plus
       minSize: 1,
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity,
+      defaultCooldown: 300,
       targetGroupArns: [nlbTargetGroup.arn],
     });
 
-    const metricsNamespace = zillaPlusContext.cloudwatch?.metrics?.namespace ?? 'zilla';
-
-    new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleOutAlarm-${id}`, {
-      alarmName: `OverallWorkerUtilizationScaleOut-${id}`,
-      comparisonOperator: "GreaterThanThreshold",
-      evaluationPeriods: 2,
-      threshold: 80,
-      alarmDescription: "Overall worker utilization exceeded 80%",
-      metricQuery: [
-        {
-          id: "e1",
-          expression: "m1 / m2 * 100",
-          label: "Overall Worker Utilization",
-          returnData: true
-        },
-        {
-          id: "m1",
-          metric: {
-            metricName: "engine.worker.utilization",
-            namespace: metricsNamespace,
-            period: 300,
-            stat: "Average",
-            unit: "Count",
-            dimensions: {}
+    if (!cloudwatchDisabled) {
+      const metricsNamespace = cloudwatch?.metrics?.namespace ?? `${id}-namespace`;
+      const metricsInterval = cloudwatch?.metrics?.interval ?? 20;
+  
+      const scaleOutPolicy = new AutoscalingPolicy(this, `ScaleOutPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleOut-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: 2,
+        cooldown: 120,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleOutAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleOut-${id}`,
+        comparisonOperator: "GreaterThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 80,
+        alarmDescription: "Overall worker utilization exceeded 80%",
+        alarmActions: [scaleOutPolicy.arn],
+        metricQuery: [
+          {
+            id: "e1",
+            expression: "m1 / m2 * 100",
+            label: "Overall Worker Utilization",
+            returnData: true
+          },
+          {
+            id: "m1",
+            metric: {
+              metricName: "engine.worker.utilization",
+              namespace: metricsNamespace,
+              period: metricsInterval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "m2",
+            metric: {
+              metricName: "engine.worker.count",
+              namespace: metricsNamespace,
+              period: metricsInterval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
           }
-        },
-        {
-          id: "m2",
-          metric: {
-            metricName: "engine.worker.count",
-            namespace: metricsNamespace,
-            period: 300,
-            stat: "Average",
-            unit: "Count",
-            dimensions: {}
+        ]
+      });
+      
+      const scaleInPolicy = new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleIn-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: -1,
+        cooldown: 120,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleInAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleIn-${id}`,
+        comparisonOperator: "LessThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 30,
+        alarmDescription: "Overall worker utilization dropped below 30%",
+        alarmActions: [scaleInPolicy.arn],
+        metricQuery: [
+          {
+            id: "e1",
+            expression: "m1 / m2 * 100",
+            label: "Overall Worker Utilization (%)",
+            returnData: true
+          },
+          {
+            id: "m1",
+            metric: {
+              metricName: "engine.worker.utilization",
+              namespace: metricsNamespace,
+              period: metricsInterval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "m2",
+            metric: {
+              metricName: "engine.worker.count",
+              namespace: metricsNamespace,
+              period: metricsInterval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
           }
-        }
-      ]
-    });
-    
-    new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleInAlarm-${id}`, {
-      alarmName: `OverallWorkerUtilizationScaleIn-${id}`,
-      comparisonOperator: "LessThanThreshold",
-      evaluationPeriods: 2,
-      threshold: 30,
-      alarmDescription: "Overall worker utilization dropped below 30%",
-      metricQuery: [
-        {
-          id: "e1",
-          expression: "m1 / m2 * 100",
-          label: "Overall Worker Utilization (%)",
-          returnData: true
-        },
-        {
-          id: "m1",
-          metric: {
-            metricName: "engine.worker.utilization",
-            namespace: metricsNamespace,
-            period: 300,
-            stat: "Average",
-            unit: "Count",
-            dimensions: {}
-          }
-        },
-        {
-          id: "m2",
-          metric: {
-            metricName: "engine.worker.count",
-            namespace: metricsNamespace,
-            period: 300,
-            stat: "Average",
-            unit: "Count",
-            dimensions: {}
-          }
-        }
-      ]
-    });
-    
-    new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
-      name: `OverallWorkerUtilizationScaleIn-${id}`,
-      adjustmentType: "ChangeInCapacity",
-      autoscalingGroupName: zillaAutoScalingGroup.name,
-      scalingAdjustment: -1,
-      cooldown: 120,
-      policyType: "SimpleScaling"
-    });
-
+        ]
+      });
+    }
+  
     new TerraformOutput(this, "NetworkLoadBalancerOutput", {
       description: "Public DNS name of newly created NLB for Zilla Plus",
       value: nlb.dnsName,

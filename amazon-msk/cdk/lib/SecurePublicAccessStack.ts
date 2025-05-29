@@ -21,10 +21,16 @@ interface TemplateData {
   external?: object;
 }
 
-interface ScalingStep {
+interface ScalingStepContext {
   lower?: number;
   upper?: number;
   change: number;
+}
+
+interface AutoscalingGroupContext {
+  scalingSteps?: ScalingStepContext[],
+  coolDown?: number,
+  warmUp?: number
 }
 
 interface SecurePublicAccessInternalContext {
@@ -59,7 +65,7 @@ interface SecurePublicAccessContext {
   internal: SecurePublicAccessInternalContext;
   external: SecurePublicAccessExternalContext;
   cloudwatch: SecurePublicAccessCloudWatchContext,
-  scalingSteps?: ScalingStep[],
+  autoscaling: AutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -88,6 +94,8 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
+    context.autoscaling.coolDown ??= 300;
+    context.autoscaling.warmUp ??= 300;
     if (context.cloudwatch.metrics) {
       context.cloudwatch.metrics.interval ??= 20;
     }
@@ -404,7 +412,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
         },
       });
 
-      const scalingSteps = context.scalingSteps ??
+      const scalingSteps = context.autoscaling.scalingSteps ??
         [
           { upper: 0.30, change: -1 },
           { lower: 0.80, change: +2 }
@@ -414,8 +422,8 @@ export class SecurePublicAccessStack extends cdk.Stack {
         metric: metricOverallWorkerUtilization,
         adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
         scalingSteps,
-        estimatedInstanceWarmup: cdk.Duration.minutes(2),
-        cooldown: cdk.Duration.minutes(3)
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmUp),
+        cooldown: cdk.Duration.seconds(context.autoscaling.coolDown)
       });
     }
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);

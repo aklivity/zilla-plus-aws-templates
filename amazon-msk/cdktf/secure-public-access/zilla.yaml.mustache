@@ -26,6 +26,7 @@ telemetry:
           stream: events
         metrics:
           namespace: {{cloudwatch.metrics.namespace}}
+          interval: {{cloudwatch.metrics.inteval}}
 {{/cloudwatch}}
 bindings:
   tcp_server:
