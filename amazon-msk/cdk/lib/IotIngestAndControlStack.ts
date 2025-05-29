@@ -22,10 +22,16 @@ interface TemplateData {
   kafka?: object;
 }
 
-interface ScalingStep {
+interface IotIngestAndControlScalingStepContext {
   lower?: number;
   upper?: number;
   change: number;
+}
+
+interface IotIngestAndControlAutoscalingGroupContext {
+  scalingSteps?: IotIngestAndControlScalingStepContext[],
+  cooldown?: number,
+  warmup?: number
 }
 
 interface IotIngestAndControlMskContext {
@@ -56,7 +62,7 @@ interface IotIngestAndControlCloudWatchContext {
 
 interface IotIngestAndControlCloudWatchMetricsContext {
   namespace: string,
-  interval: number
+  interval?: number
 }
 
 interface IotIngestAndControlCloudWatchLogsContext {
@@ -71,7 +77,7 @@ interface IotIngestAndControlContext {
   public: IotIngestAndControlPublicContext;
   topics: IotIngestAndControlTopicsContext,
   cloudwatch?: IotIngestAndControlCloudWatchContext,
-  scalingSteps?: ScalingStep[],
+  autoscaling: IotIngestAndControlAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -104,6 +110,11 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.topics.sessions ??= "mqtt-sessions";
     context.topics.messages ??= "mqtt-messages";
     context.topics.retained ??= "mqtt-retained";
+    context.autoscaling.cooldown ??= 300;
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 20;
+    }
 
     const [externalServer, externalPort] = context.public.servers.split(',')[0].split(':');
     const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
@@ -248,13 +259,12 @@ export class IotIngestAndControlStack extends cdk.Stack {
       }
   
       const metricsNamespace = context.cloudwatch?.metrics?.namespace;
-      const metricsInterval = context.cloudwatch?.metrics?.interval ?? 20;
       if (metricsNamespace) {
         zillaYamlData.cloudwatch = {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
-            interval: metricsInterval
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -414,20 +424,18 @@ export class IotIngestAndControlStack extends cdk.Stack {
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
     if (context.cloudwatch?.metrics) {
-      const metricsNamespace = context.cloudwatch.metrics.namespace;
-
       const metricWorkerUtilization = new cw.Metric({
-        namespace: metricsNamespace,
+        namespace: context.cloudwatch.metrics.namespace,
         metricName: 'engine.worker.utilization',
         statistic: 'Average',
-        period: cdk.Duration.seconds(20),
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
       const metricWorkerCount = new cw.Metric({
-        namespace: metricsNamespace,
+        namespace: context.cloudwatch.metrics.namespace,
         metricName: 'engine.worker.count',
         statistic: 'Average',
-        period: cdk.Duration.seconds(20),
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
       const metricOverallWorkerUtilization = new cw.MathExpression({
@@ -439,7 +447,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
         },
       });
 
-      const scalingSteps = context.scalingSteps ??
+      const scalingSteps = context.autoscaling.scalingSteps ??
         [
           { upper: 0.30, change: -1 },
           { lower: 0.80, change: +2 }
@@ -449,8 +457,8 @@ export class IotIngestAndControlStack extends cdk.Stack {
         metric: metricOverallWorkerUtilization,
         adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
         scalingSteps,
-        estimatedInstanceWarmup: cdk.Duration.minutes(2),
-        cooldown: cdk.Duration.minutes(3)
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup),
+        cooldown: cdk.Duration.seconds(context.autoscaling.cooldown)
       });
     }
 

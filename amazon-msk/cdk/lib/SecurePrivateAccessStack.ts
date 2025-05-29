@@ -19,10 +19,16 @@ interface TemplateData {
   external?: object;
 }
 
-interface ScalingStep {
+interface SecurePrivateAccessScalingStepContext {
   lower?: number;
   upper?: number;
   change: number;
+}
+
+interface SecurePrivateAccessAutoscalingGroupContext {
+  scalingSteps?: SecurePrivateAccessScalingStepContext[],
+  cooldown?: number,
+  warmup?: number
 }
 
 interface SecurePrivateAccessInternalContext {
@@ -41,7 +47,7 @@ interface SecurePrivateAccessCloudWatchContext {
 
 interface SecurePrivateAccessCloudWatchMetricsContext {
   namespace: string,
-  interval: number
+  interval?: number
 }
 
 interface SecurePrivateAccessCloudWatchLogsContext {
@@ -55,7 +61,7 @@ interface SecurePrivateAccessContext {
   internal: SecurePrivateAccessInternalContext;
   external: SecurePrivateAccessExternalContext;
   cloudwatch?: SecurePrivateAccessCloudWatchContext,
-  scalingSteps?: ScalingStep[],
+  autoscaling: SecurePrivateAccessAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -86,6 +92,11 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
+    context.autoscaling.cooldown ??= 300;
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 20;
+    }
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
     const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
@@ -236,13 +247,12 @@ export class SecurePrivateAccessStack extends cdk.Stack {
       }
   
       const metricsNamespace = context.cloudwatch?.metrics?.namespace;
-      const metricsInterval = context.cloudwatch?.metrics?.interval ?? 20;
       if (metricsNamespace) {
         zillaYamlData.cloudwatch = {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
-            interval: metricsInterval
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -354,20 +364,18 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
     if (context.cloudwatch?.metrics) {
-      const metricsNamespace = context.cloudwatch.metrics.namespace;
-
       const metricWorkerUtilization = new cw.Metric({
-        namespace: metricsNamespace,
+        namespace: context.cloudwatch.metrics.namespace,
         metricName: 'engine.worker.utilization',
         statistic: 'Average',
-        period: cdk.Duration.seconds(20),
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
       const metricWorkerCount = new cw.Metric({
-        namespace: metricsNamespace,
+        namespace: context.cloudwatch.metrics.namespace,
         metricName: 'engine.worker.count',
         statistic: 'Average',
-        period: cdk.Duration.seconds(20),
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
       const metricOverallWorkerUtilization = new cw.MathExpression({
@@ -379,7 +387,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
         },
       });
 
-      const scalingSteps = context.scalingSteps ??
+      const scalingSteps = context.autoscaling.scalingSteps ??
         [
           { upper: 0.30, change: -1 },
           { lower: 0.80, change: +2 }
@@ -389,8 +397,8 @@ export class SecurePrivateAccessStack extends cdk.Stack {
         metric: metricOverallWorkerUtilization,
         adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
         scalingSteps,
-        estimatedInstanceWarmup: cdk.Duration.minutes(2),
-        cooldown: cdk.Duration.minutes(3)
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup),
+        cooldown: cdk.Duration.seconds(context.autoscaling.cooldown)
       });
 
     }
