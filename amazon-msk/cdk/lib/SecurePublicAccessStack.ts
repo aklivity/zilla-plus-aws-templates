@@ -88,6 +88,9 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
+    if (context.cloudwatch.metrics) {
+      context.cloudwatch.metrics.interval ??= 20;
+    }
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
     const internalWildcardDNS = `*.${internalServer.split('.').slice(1).join(".")}`;
@@ -220,7 +223,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
       });
     }
 
-    if (context.cloudwatch) {
+    if (cloudwatchEnabled) {
       zillaYamlData.cloudwatch = {};
 
       const logGroup = context.cloudwatch?.logs?.group;
@@ -236,15 +239,14 @@ export class SecurePublicAccessStack extends cdk.Stack {
           }
         }
       }
-  
+
       const metricsNamespace = context.cloudwatch?.metrics?.namespace;
-      const metricsInterval = context.cloudwatch?.metrics?.interval ?? 20;
       if (metricsNamespace) {
         zillaYamlData.cloudwatch = {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
-            interval:  metricsInterval
+            interval: context.cloudwatch.metrics?.interval
           },
         };
       }
@@ -375,21 +377,22 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
-    if (context.cloudwatch.metrics) {
-      const metricsNamespace = context.cloudwatch.metrics.namespace;
+    const metricsNamespace = context.cloudwatch.metrics?.namespace;
+    const interval = context.cloudwatch.metrics?.interval;
+    if (metricsNamespace && interval) {
 
       const metricWorkerUtilization = new cw.Metric({
         namespace: metricsNamespace,
         metricName: 'engine.worker.utilization',
         statistic: 'Average',
-        period: cdk.Duration.minutes(5),
+        period: cdk.Duration.seconds(interval),
       });
 
       const metricWorkerCount = new cw.Metric({
         namespace: metricsNamespace,
         metricName: 'engine.worker.count',
         statistic: 'Average',
-        period: cdk.Duration.minutes(5),
+        period: cdk.Duration.seconds(interval),
       });
 
       const metricOverallWorkerUtilization = new cw.MathExpression({
@@ -415,7 +418,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
         cooldown: cdk.Duration.minutes(3)
       });
     }
-
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'CustomDnsWildcard', 
