@@ -110,6 +110,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.topics.sessions ??= "mqtt-sessions";
     context.topics.messages ??= "mqtt-messages";
     context.topics.retained ??= "mqtt-retained";
+    context.autoscaling ??= {};
     context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {

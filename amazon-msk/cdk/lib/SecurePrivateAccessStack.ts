@@ -92,6 +92,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
+    context.autoscaling ??= {};
     context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {

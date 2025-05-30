@@ -123,6 +123,7 @@ export class WebStreamingStack extends cdk.Stack {
       mapping.automatic ??= true;
       mapping.path ??= `/${mapping.topic}`;
     });
+    context.autoscaling ??= {};
     context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {
