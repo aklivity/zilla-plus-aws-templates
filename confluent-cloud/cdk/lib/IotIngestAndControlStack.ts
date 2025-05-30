@@ -127,7 +127,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {
-      context.cloudwatch.metrics.interval ??= 20;
+      context.cloudwatch.metrics.interval ??= 30;
     }
 
     const confluentBootstrapServers = context.confluentCloud.servers;

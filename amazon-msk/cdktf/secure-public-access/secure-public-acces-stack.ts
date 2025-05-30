@@ -90,7 +90,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     zillaPlusContext.autoscaling.cooldown ??= 300;
     zillaPlusContext.autoscaling.warmup ??= 300;
     if (zillaPlusContext.cloudwatch?.metrics) {
-      zillaPlusContext.cloudwatch.metrics.interval ??= 20;
+      zillaPlusContext.cloudwatch.metrics.interval ??= 30;
     }
 
     validateContextKeys(msk, mandatoryMSKVariables);

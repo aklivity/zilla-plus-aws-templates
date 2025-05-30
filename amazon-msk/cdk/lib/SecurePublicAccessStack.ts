@@ -98,7 +98,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {
-      context.cloudwatch.metrics.interval ??= 20;
+      context.cloudwatch.metrics.interval ??= 30;
     }
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
