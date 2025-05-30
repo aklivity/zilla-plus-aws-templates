@@ -38,6 +38,7 @@ interface TemplateData {
   name: string;
   useAcm: boolean;
   cloudwatch?: object;
+  autoscaling: object;
   public?: object;
   mTLS?: boolean;
   externalHost?: string;
@@ -84,6 +85,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       'cluster',
       'clientAuthentication'
     ];
+
+    zillaPlusContext.autoscaling ??= {};
+    zillaPlusContext.autoscaling.cooldown ??= 300;
+    zillaPlusContext.autoscaling.warmup ??= 300;
+    if (zillaPlusContext.cloudwatch?.metrics) {
+      zillaPlusContext.cloudwatch.metrics.interval ??= 20;
+    }
 
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskClusterName = msk.cluster;
@@ -219,6 +227,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       name: 'public',
       useAcm: publicTlsCertificateViaAcm,
       mTLS: mTLSEnabled,
+      autoscaling: zillaPlusContext.autoscaling,
       public: {}
     };
 
@@ -614,14 +623,14 @@ systemctl start zilla-plus
 
     if (!cloudwatchDisabled) {
       const metricsNamespace = cloudwatch?.metrics?.namespace ?? `${id}-namespace`;
-      const metricsInterval = cloudwatch?.metrics?.interval ?? 20;
   
       const scaleOutPolicy = new AutoscalingPolicy(this, `ScaleOutPolicy-${id}`, {
         name: `OverallWorkerUtilizationScaleOut-${id}`,
         adjustmentType: "ChangeInCapacity",
         autoscalingGroupName: zillaAutoScalingGroup.name,
         scalingAdjustment: 2,
-        cooldown: 120,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
         policyType: "SimpleScaling"
       });
   
@@ -644,7 +653,7 @@ systemctl start zilla-plus
             metric: {
               metricName: "engine.worker.utilization",
               namespace: metricsNamespace,
-              period: metricsInterval,
+              period: cloudwatch?.metrics?.interval,
               stat: "Average",
               unit: "Count",
               dimensions: {}
@@ -655,7 +664,7 @@ systemctl start zilla-plus
             metric: {
               metricName: "engine.worker.count",
               namespace: metricsNamespace,
-              period: metricsInterval,
+              period: cloudwatch?.metrics?.interval,
               stat: "Average",
               unit: "Count",
               dimensions: {}
@@ -669,7 +678,8 @@ systemctl start zilla-plus
         adjustmentType: "ChangeInCapacity",
         autoscalingGroupName: zillaAutoScalingGroup.name,
         scalingAdjustment: -1,
-        cooldown: 120,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
         policyType: "SimpleScaling"
       });
   
@@ -692,7 +702,7 @@ systemctl start zilla-plus
             metric: {
               metricName: "engine.worker.utilization",
               namespace: metricsNamespace,
-              period: metricsInterval,
+              period: cloudwatch?.metrics?.interval,
               stat: "Average",
               unit: "Count",
               dimensions: {}
@@ -703,7 +713,7 @@ systemctl start zilla-plus
             metric: {
               metricName: "engine.worker.count",
               namespace: metricsNamespace,
-              period: metricsInterval,
+              period: cloudwatch?.metrics?.interval,
               stat: "Average",
               unit: "Count",
               dimensions: {}
