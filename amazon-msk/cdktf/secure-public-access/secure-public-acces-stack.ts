@@ -448,7 +448,6 @@ systemctl start nitro-enclaves-acm.service
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
-      const metricsInterval = cloudwatch?.metrics?.interval ?? 20;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -465,7 +464,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: metricNamespace,
-          interval: metricsInterval
+          interval: cloudwatch?.metrics?.interval
         },
       };
     }
