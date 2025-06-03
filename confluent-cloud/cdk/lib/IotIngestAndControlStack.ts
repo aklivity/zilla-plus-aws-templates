@@ -32,7 +32,6 @@ interface IotIngestAndControlScalingStepContext {
 
 interface IotIngestAndControlAutoscalingGroupContext {
   scalingSteps?: IotIngestAndControlScalingStepContext[],
-  cooldown?: number,
   warmup?: number
 }
 
@@ -124,7 +123,6 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.autoscaling ??= {};
-    context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {
       context.cloudwatch.metrics.interval ??= 30;
@@ -572,8 +570,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
         metric: metricOverallWorkerUtilization,
         adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
         scalingSteps,
-        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup),
-        cooldown: cdk.Duration.seconds(context.autoscaling.cooldown)
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup)
       });
     }
 

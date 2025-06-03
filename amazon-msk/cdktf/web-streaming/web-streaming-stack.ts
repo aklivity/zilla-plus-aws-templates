@@ -84,9 +84,6 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     zillaPlusContext.autoscaling ??= {};
     zillaPlusContext.autoscaling.cooldown ??= 300;
     zillaPlusContext.autoscaling.warmup ??= 300;
-    if (zillaPlusContext.cloudwatch?.metrics) {
-      zillaPlusContext.cloudwatch.metrics.interval ??= 30;
-    }
 
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskClusterName = msk.cluster;
@@ -366,7 +363,6 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       }
     }
 
-
     const cloudwatch = zillaPlusContext.cloudwatch;
     const cloudwatchDisabled = cloudwatch?.disabled ?? false;
 
@@ -376,6 +372,7 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
+      const metricsInterval = cloudwatch?.metrics.interval ?? 30;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -392,7 +389,7 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
         },
         metrics: {
           namespace: metricNamespace,
-          interval: cloudwatch.metrics.interval,
+          interval: metricsInterval
         },
       };
     }

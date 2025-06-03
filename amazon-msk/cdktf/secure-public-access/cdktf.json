@@ -19,6 +19,13 @@
       {
         "wildcardDNS": "<your public wildcard DNS>",
         "certificate":  "<your public tls certificate key ARN>"
+      },
+      "cloudwatch":
+      {
+         "metrics":
+         {
+           "namespace": "secure-public-access"
+         }
       }
     }
   }

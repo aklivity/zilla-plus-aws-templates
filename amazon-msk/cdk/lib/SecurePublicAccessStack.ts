@@ -29,7 +29,6 @@ interface SecurePublicAccessScalingStepContext {
 
 interface SecurePublicAccessAutoscalingGroupContext {
   scalingSteps?: SecurePublicAccessScalingStepContext[],
-  cooldown?: number,
   warmup?: number
 }
 
@@ -95,7 +94,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
     context.autoscaling ??= {};
-    context.autoscaling.cooldown ??= 300;
     context.autoscaling.warmup ??= 300;
     if (context.cloudwatch?.metrics) {
       context.cloudwatch.metrics.interval ??= 30;
@@ -421,7 +419,6 @@ export class SecurePublicAccessStack extends cdk.Stack {
         adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
         scalingSteps,
         estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup),
-        cooldown: cdk.Duration.seconds(context.autoscaling.cooldown)
       });
     }
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
