@@ -445,7 +445,7 @@ systemctl start nitro-enclaves-acm.service
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
-      //const metricsInterval = cloudwatch?.metrics?.interval ?? 30;
+      const metricsInterval = cloudwatch?.metrics?.interval ?? 30;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -462,7 +462,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: metricNamespace,
-          interval: 30
+          interval: metricsInterval
         },
       };
     }
@@ -648,7 +648,7 @@ systemctl start zilla-plus
           {
             id: "m1",
             metric: {
-              metricName: "engine.worker.utilization",
+              metricName: "engine.workers.utilization",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -659,7 +659,7 @@ systemctl start zilla-plus
           {
             id: "m2",
             metric: {
-              metricName: "engine.worker.count",
+              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -697,7 +697,7 @@ systemctl start zilla-plus
           {
             id: "m1",
             metric: {
-              metricName: "engine.worker.utilization",
+              metricName: "engine.workers.utilization",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -708,7 +708,7 @@ systemctl start zilla-plus
           {
             id: "m2",
             metric: {
-              metricName: "engine.worker.count",
+              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",

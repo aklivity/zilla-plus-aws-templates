@@ -558,14 +558,14 @@ export class WebStreamingStack extends cdk.Stack {
     if (context.cloudwatch?.metrics) {
       const metricWorkerUtilization = new cw.Metric({
         namespace: context.cloudwatch.metrics.namespace,
-        metricName: 'engine.worker.utilization',
+        metricName: 'engine.workers.utilization',
         statistic: 'Average',
         period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
       const metricWorkerCount = new cw.Metric({
         namespace: context.cloudwatch.metrics.namespace,
-        metricName: 'engine.worker.count',
+        metricName: 'engine.workers.count',
         statistic: 'Average',
         period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });

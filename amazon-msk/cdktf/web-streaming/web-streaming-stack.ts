@@ -603,7 +603,7 @@ ${kafkaTopicCreationCommand}
           {
             id: "m1",
             metric: {
-              metricName: "engine.worker.utilization",
+              metricName: "engine.workers.utilization",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -614,7 +614,7 @@ ${kafkaTopicCreationCommand}
           {
             id: "m2",
             metric: {
-              metricName: "engine.worker.count",
+              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -652,7 +652,7 @@ ${kafkaTopicCreationCommand}
           {
             id: "m1",
             metric: {
-              metricName: "engine.worker.utilization",
+              metricName: "engine.workers.utilization",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -663,7 +663,7 @@ ${kafkaTopicCreationCommand}
           {
             id: "m2",
             metric: {
-              metricName: "engine.worker.count",
+              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
