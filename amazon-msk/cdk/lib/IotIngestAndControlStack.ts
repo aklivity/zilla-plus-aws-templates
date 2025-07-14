@@ -430,13 +430,6 @@ export class IotIngestAndControlStack extends cdk.Stack {
         period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
-      const metricWorkerCount = new cw.Metric({
-        namespace: context.cloudwatch.metrics.namespace,
-        metricName: 'engine.workers.count',
-        statistic: 'Average',
-        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
-      });
-
       const metricWorkerCapacity = new cw.Metric({
         namespace: context.cloudwatch.metrics.namespace,
         metricName: 'engine.workers.capacity',
@@ -446,10 +439,9 @@ export class IotIngestAndControlStack extends cdk.Stack {
 
       const metricOverallWorkerUtilization = new cw.MathExpression({
         label: 'OverallWorkerUtilization',
-        expression: '((usage / workers) * 100) / capacity',
+        expression: '(usage * 100) / capacity',
         usingMetrics: {
           usage: metricWorkerUsage,
-          workers: metricWorkerCount,
           capacity: metricWorkerCapacity
         },
       });

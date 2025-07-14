@@ -641,7 +641,7 @@ systemctl start zilla-plus
         metricQuery: [
           {
             id: "utilization",
-            expression: "((usage / workers) * 100) / capacity",
+            expression: "(usage * 100) / capacity",
             label: "Overall Worker Utilization",
             returnData: true
           },
@@ -649,17 +649,6 @@ systemctl start zilla-plus
             id: "usage",
             metric: {
               metricName: "engine.workers.usage",
-              namespace: metricsNamespace,
-              period: cloudwatch?.metrics?.interval,
-              stat: "Average",
-              unit: "Count",
-              dimensions: {}
-            }
-          },
-          {
-            id: "workers",
-            metric: {
-              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -701,7 +690,7 @@ systemctl start zilla-plus
         metricQuery: [
           {
             id: "utilization",
-            expression: "((usage / workers) * 100) / capacity",
+            expression: "(usage * 100) / capacity",
             label: "Overall Worker Utilization",
             returnData: true
           },
@@ -709,17 +698,6 @@ systemctl start zilla-plus
             id: "usage",
             metric: {
               metricName: "engine.workers.usage",
-              namespace: metricsNamespace,
-              period: cloudwatch?.metrics?.interval,
-              stat: "Average",
-              unit: "Count",
-              dimensions: {}
-            }
-          },
-          {
-            id: "workers",
-            metric: {
-              metricName: "engine.workers.count",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
