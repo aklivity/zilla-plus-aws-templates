@@ -640,15 +640,15 @@ systemctl start zilla-plus
         alarmActions: [scaleOutPolicy.arn],
         metricQuery: [
           {
-            id: "e1",
-            expression: "m1 / m2 * 100",
+            id: "utilization",
+            expression: "((usage / workers) * 100) / capacity",
             label: "Overall Worker Utilization",
             returnData: true
           },
           {
-            id: "m1",
+            id: "usage",
             metric: {
-              metricName: "engine.workers.utilization",
+              metricName: "engine.workers.usage",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -657,7 +657,7 @@ systemctl start zilla-plus
             }
           },
           {
-            id: "m2",
+            id: "workers",
             metric: {
               metricName: "engine.workers.count",
               namespace: metricsNamespace,
@@ -666,10 +666,21 @@ systemctl start zilla-plus
               unit: "Count",
               dimensions: {}
             }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
           }
         ]
       });
-      
+
       const scaleInPolicy = new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
         name: `OverallWorkerUtilizationScaleIn-${id}`,
         adjustmentType: "ChangeInCapacity",
@@ -689,15 +700,15 @@ systemctl start zilla-plus
         alarmActions: [scaleInPolicy.arn],
         metricQuery: [
           {
-            id: "e1",
-            expression: "m1 / m2 * 100",
-            label: "Overall Worker Utilization (%)",
+            id: "utilization",
+            expression: "((usage / workers) * 100) / capacity",
+            label: "Overall Worker Utilization",
             returnData: true
           },
           {
-            id: "m1",
+            id: "usage",
             metric: {
-              metricName: "engine.workers.utilization",
+              metricName: "engine.workers.usage",
               namespace: metricsNamespace,
               period: cloudwatch?.metrics?.interval,
               stat: "Average",
@@ -706,7 +717,7 @@ systemctl start zilla-plus
             }
           },
           {
-            id: "m2",
+            id: "workers",
             metric: {
               metricName: "engine.workers.count",
               namespace: metricsNamespace,
@@ -715,6 +726,17 @@ systemctl start zilla-plus
               unit: "Count",
               dimensions: {}
             }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
           }
         ]
       });

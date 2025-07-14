@@ -423,9 +423,9 @@ export class IotIngestAndControlStack extends cdk.Stack {
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
     if (context.cloudwatch?.metrics) {
-      const metricWorkerUtilization = new cw.Metric({
+      const metricWorkerUsage = new cw.Metric({
         namespace: context.cloudwatch.metrics.namespace,
-        metricName: 'engine.workers.utilization',
+        metricName: 'engine.workers.usage',
         statistic: 'Average',
         period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
@@ -437,19 +437,27 @@ export class IotIngestAndControlStack extends cdk.Stack {
         period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
       });
 
+      const metricWorkerCapacity = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.capacity',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
       const metricOverallWorkerUtilization = new cw.MathExpression({
         label: 'OverallWorkerUtilization',
-        expression: 'm1 / m2',
+        expression: '((usage / workers) * 100) / capacity',
         usingMetrics: {
-          m1: metricWorkerUtilization,
-          m2: metricWorkerCount,
+          usage: metricWorkerUsage,
+          workers: metricWorkerCount,
+          capacity: metricWorkerCapacity
         },
       });
 
       const scalingSteps = context.autoscaling.scalingSteps ??
         [
-          { upper: 0.30, change: -1 },
-          { lower: 0.80, change: +2 }
+          { upper: 30, change: -1 },
+          { lower: 80, change: +2 }
         ]
 
       autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {

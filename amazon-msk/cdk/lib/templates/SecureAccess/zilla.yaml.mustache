@@ -15,15 +15,6 @@ telemetry:
     - stream.closes.received
     - stream.closes.sent
   exporters:
-    aws-cloudwatch0:
-      type: aws-cloudwatch
-      options:
-        metrics:
-          namespace: zilla
-          interval: {{{cloudwatch.metrics.interval}}}
-        logs:
-          group: zilla-log-group
-          stream: zilla-log-stream
     stdout_logs_exporter:
       type: stdout
 {{#cloudwatch}}
@@ -38,6 +29,7 @@ telemetry:
 {{#cloudwatch.metrics}}
         metrics:
           namespace: {{{cloudwatch.metrics.namespace}}}
+          interval: {{{cloudwatch.metrics.interval}}}
 {{/cloudwatch.metrics}}
 {{/cloudwatch}}
 bindings:
