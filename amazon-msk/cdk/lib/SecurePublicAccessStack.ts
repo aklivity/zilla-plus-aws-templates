@@ -6,6 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import Mustache = require("mustache");
@@ -18,6 +19,17 @@ interface TemplateData {
   cloudwatch?: object;
   internal?: object;
   external?: object;
+}
+
+interface SecurePublicAccessScalingStepContext {
+  lower?: number;
+  upper?: number;
+  change: number;
+}
+
+interface SecurePublicAccessAutoscalingGroupContext {
+  scalingSteps?: SecurePublicAccessScalingStepContext[],
+  warmup?: number
 }
 
 interface SecurePublicAccessInternalContext {
@@ -37,7 +49,8 @@ interface SecurePublicAccessCloudWatchContext {
 }
 
 interface SecurePublicAccessCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval?: number
 }
 
 interface SecurePublicAccessCloudWatchLogsContext {
@@ -51,6 +64,7 @@ interface SecurePublicAccessContext {
   internal: SecurePublicAccessInternalContext;
   external: SecurePublicAccessExternalContext;
   cloudwatch?: SecurePublicAccessCloudWatchContext,
+  autoscaling: SecurePublicAccessAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -79,6 +93,11 @@ export class SecurePublicAccessStack extends cdk.Stack {
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
     context.external.trust ??= context.internal.trust;
+    context.autoscaling ??= {};
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 30;
+    }
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
     const internalWildcardDNS = `*.${internalServer.split('.').slice(1).join(".")}`;
@@ -125,6 +144,11 @@ export class SecurePublicAccessStack extends cdk.Stack {
         ec2.Peer.anyIpv4(),
         ec2.Port.tcp(Number(externalPort)),
         'Allow inbound traffic on external port');
+
+      securityGroup.addIngressRule(
+        ec2.Peer.anyIpv4(),
+        ec2.Port.tcp(Number(22)),
+        'Allow inbound traffic on ssh port');
     }
 
     let role;
@@ -211,7 +235,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
       });
     }
 
-    if (context.cloudwatch) {
+    if (cloudwatchEnabled) {
       zillaYamlData.cloudwatch = {};
 
       const logGroup = context.cloudwatch?.logs?.group;
@@ -227,13 +251,14 @@ export class SecurePublicAccessStack extends cdk.Stack {
           }
         }
       }
-  
+
       const metricsNamespace = context.cloudwatch?.metrics?.namespace;
       if (metricsNamespace) {
         zillaYamlData.cloudwatch = {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -364,6 +389,43 @@ export class SecurePublicAccessStack extends cdk.Stack {
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
 
+    if (context.cloudwatch?.metrics) {
+      const metricWorkerUsage = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.usage',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricWorkerCapacity = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.capacity',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricOverallWorkerUtilization = new cw.MathExpression({
+        label: 'OverallWorkerUtilization',
+        expression: '(usage * 100) / capacity',
+        usingMetrics: {
+          usage: metricWorkerUsage,
+          capacity: metricWorkerCapacity
+        },
+      });
+
+      const scalingSteps = context.autoscaling.scalingSteps ??
+        [
+          { upper: 30, change: -1 },
+          { lower: 80, change: +2 }
+        ]
+
+      autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+        metric: metricOverallWorkerUtilization,
+        adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        scalingSteps,
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup)
+      });
+    }
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 
     new cdk.CfnOutput(this, 'CustomDnsWildcard', 

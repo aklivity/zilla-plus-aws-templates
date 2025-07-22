@@ -28,10 +28,13 @@ import Mustache = require("mustache");
 import fs =  require("fs");
 import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 import { CloudwatchLogStream } from "@cdktf/provider-aws/lib/cloudwatch-log-stream";
+import { CloudwatchMetricAlarm } from "@cdktf/provider-aws/lib/cloudwatch-metric-alarm";
+import { AutoscalingPolicy } from "@cdktf/provider-aws/lib/autoscaling-policy";
 
 interface TemplateData {
   name: string;
   cloudwatch?: object;
+  autoscaling: object;
   public?: object;
   topics?: object;
   kafka?: object;
@@ -75,6 +78,10 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       'cluster',
       'credentials'
     ];
+    
+    zillaPlusContext.autoscaling ??= {};
+    zillaPlusContext.autoscaling.cooldown ??= 300;
+    zillaPlusContext.autoscaling.warmup ??= 300;
 
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskClusterName = msk.cluster;
@@ -328,6 +335,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     });
 
     const data: TemplateData = {
+      autoscaling: zillaPlusContext.autoscaling,
       name: 'iot',
     }
 
@@ -340,7 +348,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
-
+      const metricsInterval = cloudwatch?.metrics?.interval ?? 30;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -356,7 +364,8 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
           group: logGroupName
         },
         metrics: {
-          namespace: metricNamespace
+          namespace: metricNamespace,
+          interval: metricsInterval
         },
       };
     }
@@ -523,7 +532,7 @@ ${kafkaTopicCreationCommand}
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, `zillaPlusGroup-${id}`, {
+    const zillaAutoScalingGroup = new autoscalingGroup.AutoscalingGroup(this, `zillaPlusGroup-${id}`, {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: MSKProxyLaunchTemplate.id,
@@ -533,6 +542,108 @@ ${kafkaTopicCreationCommand}
       desiredCapacity: zillaPlusCapacity,
       targetGroupArns: [nlbTargetGroup.arn],
     });
+    
+    if (!cloudwatchDisabled) {
+      const metricsNamespace = cloudwatch?.metrics?.namespace ?? `${id}-namespace`;
+  
+      const scaleOutPolicy = new AutoscalingPolicy(this, `ScaleOutPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleOut-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: 2,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleOutAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleOut-${id}`,
+        comparisonOperator: "GreaterThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 80,
+        alarmDescription: "Overall worker utilization exceeded 80%",
+        alarmActions: [scaleOutPolicy.arn],
+        metricQuery: [
+          {
+            id: "utilization",
+            expression: "(usage * 100) / capacity",
+            label: "Overall Worker Utilization",
+            returnData: true
+          },
+          {
+            id: "usage",
+            metric: {
+              metricName: "engine.workers.usage",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
+          }
+        ]
+      });
+
+      const scaleInPolicy = new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleIn-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: -1,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleInAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleIn-${id}`,
+        comparisonOperator: "LessThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 30,
+        alarmDescription: "Overall worker utilization dropped below 30%",
+        alarmActions: [scaleInPolicy.arn],
+        metricQuery: [
+          {
+            id: "utilization",
+            expression: "(usage * 100) / capacity",
+            label: "Overall Worker Utilization",
+            returnData: true
+          },
+          {
+            id: "usage",
+            metric: {
+              metricName: "engine.workers.usage",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
+          }
+        ]
+      });
+    }
 
     new TerraformOutput(this, "NetworkLoadBalancerOutput", {
       description: "Public DNS name of newly created NLB for Public MSK Proxy",

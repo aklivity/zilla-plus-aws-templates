@@ -23,6 +23,7 @@ import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-availability-zones";
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
+import { CloudwatchMetricAlarm } from "@cdktf/provider-aws/lib/cloudwatch-metric-alarm";
 
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
@@ -31,11 +32,13 @@ import Mustache = require("mustache");
 import fs =  require("fs");
 import { DataAwsInternetGateway } from "@cdktf/provider-aws/lib/data-aws-internet-gateway";
 import { CloudwatchLogStream } from "@cdktf/provider-aws/lib/cloudwatch-log-stream";
+import { AutoscalingPolicy } from "@cdktf/provider-aws/lib/autoscaling-policy";
 
 interface TemplateData {
   name: string;
   useAcm: boolean;
   cloudwatch?: object;
+  autoscaling: object;
   public?: object;
   mTLS?: boolean;
   externalHost?: string;
@@ -71,7 +74,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       }
     }
 
-
     let mskPort;
     let mskWildcardDNS;
     let mskCertificateAuthority;
@@ -83,6 +85,10 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       'cluster',
       'clientAuthentication'
     ];
+
+    zillaPlusContext.autoscaling ??= {};
+    zillaPlusContext.autoscaling.cooldown ??= 300;
+    zillaPlusContext.autoscaling.warmup ??= 300;
 
     validateContextKeys(msk, mandatoryMSKVariables);
     const mskClusterName = msk.cluster;
@@ -218,6 +224,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       name: 'public',
       useAcm: publicTlsCertificateViaAcm,
       mTLS: mTLSEnabled,
+      autoscaling: zillaPlusContext.autoscaling,
       public: {}
     };
 
@@ -438,6 +445,7 @@ systemctl start nitro-enclaves-acm.service
 
       const logGroupName = cloudwatch?.logs?.group ?? defaultLogGroupName;
       const metricNamespace = cloudwatch?.metrics?.namespace ?? defaultMetricNamespace;
+      const metricsInterval = cloudwatch?.metrics?.interval ?? 30;
 
       const cloudWatchLogGroup = new CloudwatchLogGroup(this, `loggroup-${id}`, {
         name: logGroupName
@@ -454,6 +462,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: metricNamespace,
+          interval: metricsInterval
         },
       };
     }
@@ -597,7 +606,7 @@ systemctl start zilla-plus
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
+    const zillaAutoScalingGroup = new autoscalingGroup.AutoscalingGroup(this, `ZillaPlusGroup-${id}`, {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: ZillaPlusLaunchTemplate.id,
@@ -605,9 +614,112 @@ systemctl start zilla-plus
       minSize: 1,
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity,
+      defaultCooldown: 300,
       targetGroupArns: [nlbTargetGroup.arn],
     });
 
+    if (!cloudwatchDisabled) {
+      const metricsNamespace = cloudwatch?.metrics?.namespace ?? `${id}-namespace`;
+  
+      const scaleOutPolicy = new AutoscalingPolicy(this, `ScaleOutPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleOut-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: 2,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleOutAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleOut-${id}`,
+        comparisonOperator: "GreaterThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 80,
+        alarmDescription: "Overall worker utilization exceeded 80%",
+        alarmActions: [scaleOutPolicy.arn],
+        metricQuery: [
+          {
+            id: "utilization",
+            expression: "(usage * 100) / capacity",
+            label: "Overall Worker Utilization",
+            returnData: true
+          },
+          {
+            id: "usage",
+            metric: {
+              metricName: "engine.workers.usage",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
+          }
+        ]
+      });
+
+      const scaleInPolicy = new AutoscalingPolicy(this, `ScaleInPolicy-${id}`, {
+        name: `OverallWorkerUtilizationScaleIn-${id}`,
+        adjustmentType: "ChangeInCapacity",
+        autoscalingGroupName: zillaAutoScalingGroup.name,
+        scalingAdjustment: -1,
+        cooldown: zillaPlusContext.autoscaling.cooldown,
+        estimatedInstanceWarmup: zillaPlusContext.autoscaling.warmup,
+        policyType: "SimpleScaling"
+      });
+  
+      new CloudwatchMetricAlarm(this, `OverallWorkerUtilizationScaleInAlarm-${id}`, {
+        alarmName: `OverallWorkerUtilizationScaleIn-${id}`,
+        comparisonOperator: "LessThanThreshold",
+        evaluationPeriods: 2,
+        threshold: 30,
+        alarmDescription: "Overall worker utilization dropped below 30%",
+        alarmActions: [scaleInPolicy.arn],
+        metricQuery: [
+          {
+            id: "utilization",
+            expression: "(usage * 100) / capacity",
+            label: "Overall Worker Utilization",
+            returnData: true
+          },
+          {
+            id: "usage",
+            metric: {
+              metricName: "engine.workers.usage",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            }
+          },
+          {
+            id: "capacity",
+            metric: {
+              metricName: "engine.workers.capacity",
+              namespace: metricsNamespace,
+              period: cloudwatch?.metrics?.interval,
+              stat: "Average",
+              unit: "Count",
+              dimensions: {}
+            },
+          }
+        ]
+      });
+    }
+  
     new TerraformOutput(this, "NetworkLoadBalancerOutput", {
       description: "Public DNS name of newly created NLB for Zilla Plus",
       value: nlb.dnsName,

@@ -6,6 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import Mustache = require("mustache");
@@ -19,6 +20,17 @@ interface TemplateData {
   public?: object;
   topics?: object;
   kafka?: object;
+}
+
+interface IotIngestAndControlScalingStepContext {
+  lower?: number;
+  upper?: number;
+  change: number;
+}
+
+interface IotIngestAndControlAutoscalingGroupContext {
+  scalingSteps?: IotIngestAndControlScalingStepContext[],
+  warmup?: number
 }
 
 interface IotIngestAndControlMskContext {
@@ -48,7 +60,8 @@ interface IotIngestAndControlCloudWatchContext {
 }
 
 interface IotIngestAndControlCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval?: number
 }
 
 interface IotIngestAndControlCloudWatchLogsContext {
@@ -63,6 +76,7 @@ interface IotIngestAndControlContext {
   public: IotIngestAndControlPublicContext;
   topics: IotIngestAndControlTopicsContext,
   cloudwatch?: IotIngestAndControlCloudWatchContext,
+  autoscaling: IotIngestAndControlAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -95,6 +109,11 @@ export class IotIngestAndControlStack extends cdk.Stack {
     context.topics.sessions ??= "mqtt-sessions";
     context.topics.messages ??= "mqtt-messages";
     context.topics.retained ??= "mqtt-retained";
+    context.autoscaling ??= {};
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 30;
+    }
 
     const [externalServer, externalPort] = context.public.servers.split(',')[0].split(':');
     const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
@@ -244,6 +263,7 @@ export class IotIngestAndControlStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -401,6 +421,44 @@ export class IotIngestAndControlStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+
+    if (context.cloudwatch?.metrics) {
+      const metricWorkerUsage = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.usage',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricWorkerCapacity = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.capacity',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricOverallWorkerUtilization = new cw.MathExpression({
+        label: 'OverallWorkerUtilization',
+        expression: '(usage * 100) / capacity',
+        usingMetrics: {
+          usage: metricWorkerUsage,
+          capacity: metricWorkerCapacity
+        },
+      });
+
+      const scalingSteps = context.autoscaling.scalingSteps ??
+        [
+          { upper: 30, change: -1 },
+          { lower: 80, change: +2 }
+        ]
+
+      autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+        metric: metricOverallWorkerUtilization,
+        adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        scalingSteps,
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup)
+      });
+    }
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

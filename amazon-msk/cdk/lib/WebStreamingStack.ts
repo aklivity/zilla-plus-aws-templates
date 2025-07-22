@@ -11,6 +11,7 @@ import * as path from 'path';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import { ZillaPlusStackProps } from '../bin/app';
+import * as cw from "aws-cdk-lib/aws-cloudwatch";
 
 interface TemplateData {
   name: string;
@@ -21,6 +22,17 @@ interface TemplateData {
   public?: object;
   kafka?: object;
   jwt?: object;
+}
+
+interface WebStreamingScalingStepContext {
+  lower?: number;
+  upper?: number;
+  change: number;
+}
+
+interface WebStreamingAutoscalingGroupContext {
+  scalingSteps?: WebStreamingScalingStepContext[],
+  warmup?: number
 }
 
 interface WebStreamingMskContext {
@@ -59,7 +71,8 @@ interface WebStreamingCloudWatchContext {
 }
 
 interface WebStreamingCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval?: number
 }
 
 interface WebStreamingCloudWatchLogsContext {
@@ -76,6 +89,7 @@ interface WebStreamingContext {
   jwt: WebStreamingJwtContext,
   glue: WebStreamingGlueContext,
   cloudwatch?: WebStreamingCloudWatchContext,
+  autoscaling: WebStreamingAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -108,6 +122,11 @@ export class WebStreamingStack extends cdk.Stack {
       mapping.automatic ??= true;
       mapping.path ??= `/${mapping.topic}`;
     });
+    context.autoscaling ??= {};
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 30;
+    }
 
     const [externalServer, externalPort] = context.public.servers.split(',')[0].split(':');
     const externalWildcardDNS = `*.${externalServer.split('.').slice(1).join(".")}`;
@@ -236,7 +255,7 @@ export class WebStreamingStack extends cdk.Stack {
       });
     }
 
-    if (context.cloudwatch) {
+    if (cloudwatchEnabled) {
       zillaYamlData.cloudwatch = {};
 
       const logGroup = context.cloudwatch?.logs?.group;
@@ -259,6 +278,7 @@ export class WebStreamingStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -406,6 +426,44 @@ export class WebStreamingStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+    
+    if (context.cloudwatch?.metrics) {
+      const metricWorkerUsage = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.usage',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricWorkerCapacity = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.capacity',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricOverallWorkerUtilization = new cw.MathExpression({
+        label: 'OverallWorkerUtilization',
+        expression: '(usage * 100) / capacity',
+        usingMetrics: {
+          usage: metricWorkerUsage,
+          capacity: metricWorkerCapacity
+        },
+      });
+
+      const scalingSteps = context.autoscaling.scalingSteps ??
+        [
+          { upper: 30, change: -1 },
+          { lower: 80, change: +2 }
+        ]
+
+      autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+        metric: metricOverallWorkerUtilization,
+        adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        scalingSteps,
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup)
+      });
+    }
 
     cdk.Tags.of(launchTemplate).add('Name', `ZillaPlus-${id}`);
 

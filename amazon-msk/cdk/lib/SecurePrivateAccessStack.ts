@@ -3,6 +3,7 @@ import { Construct, Node } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { aws_logs as logs, aws_elasticloadbalancingv2 as elbv2, aws_autoscaling as autoscaling} from 'aws-cdk-lib';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import Mustache = require("mustache");
 import fs =  require("fs");
 import * as path from 'path';
@@ -16,6 +17,17 @@ interface TemplateData {
   cloudwatch?: object;
   internal?: object;
   external?: object;
+}
+
+interface SecurePrivateAccessScalingStepContext {
+  lower?: number;
+  upper?: number;
+  change: number;
+}
+
+interface SecurePrivateAccessAutoscalingGroupContext {
+  scalingSteps?: SecurePrivateAccessScalingStepContext[],
+  warmup?: number
 }
 
 interface SecurePrivateAccessInternalContext {
@@ -33,7 +45,8 @@ interface SecurePrivateAccessCloudWatchContext {
 }
 
 interface SecurePrivateAccessCloudWatchMetricsContext {
-  namespace: string
+  namespace: string,
+  interval?: number
 }
 
 interface SecurePrivateAccessCloudWatchLogsContext {
@@ -47,6 +60,7 @@ interface SecurePrivateAccessContext {
   internal: SecurePrivateAccessInternalContext;
   external: SecurePrivateAccessExternalContext;
   cloudwatch?: SecurePrivateAccessCloudWatchContext,
+  autoscaling: SecurePrivateAccessAutoscalingGroupContext,
   securityGroup?: string,
   roleName?: string,
   capacity?: number,
@@ -77,6 +91,11 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     context.version ??= "latest";
     context.capacity ??= props?.freeTrial ? 1 : 2;
     context.instanceType ??= 'c6i.xlarge';
+    context.autoscaling ??= {};
+    context.autoscaling.warmup ??= 300;
+    if (context.cloudwatch?.metrics) {
+      context.cloudwatch.metrics.interval ??= 30;
+    }
 
     const [internalServer, internalPort] = context.internal.servers.split(',')[0].split(':');
     const internalWildcardDNS = `*-${internalServer.split('-').slice(1).join("-")}`;
@@ -232,6 +251,7 @@ export class SecurePrivateAccessStack extends cdk.Stack {
           ...zillaYamlData.cloudwatch,
           metrics: {
             namespace: metricsNamespace,
+            interval: context.cloudwatch?.metrics?.interval
           },
         };
       }
@@ -341,6 +361,45 @@ export class SecurePrivateAccessStack extends cdk.Stack {
     });
 
     autoScalingGroup.attachToNetworkTargetGroup(targetGroup);
+
+    if (context.cloudwatch?.metrics) {
+      const metricWorkerUsage = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.usage',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricWorkerCapacity = new cw.Metric({
+        namespace: context.cloudwatch.metrics.namespace,
+        metricName: 'engine.workers.capacity',
+        statistic: 'Average',
+        period: cdk.Duration.seconds(Number(context.cloudwatch.metrics.interval)),
+      });
+
+      const metricOverallWorkerUtilization = new cw.MathExpression({
+        label: 'OverallWorkerUtilization',
+        expression: '(usage * 100) / capacity',
+        usingMetrics: {
+          usage: metricWorkerUsage,
+          capacity: metricWorkerCapacity
+        },
+      });
+
+      const scalingSteps = context.autoscaling.scalingSteps ??
+        [
+          { upper: 30, change: -1 },
+          { lower: 80, change: +2 }
+        ]
+
+      autoScalingGroup.scaleOnMetric('WorkerUtilizationStepScaling', {
+        metric: metricOverallWorkerUtilization,
+        adjustmentType: autoscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+        scalingSteps,
+        estimatedInstanceWarmup: cdk.Duration.seconds(context.autoscaling.warmup)
+      });
+
+    }
 
     const vpceService = new ec2.VpcEndpointService(this, 'ZillaPlus-VpcEndpointService', {
       acceptanceRequired: true,
