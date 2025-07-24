@@ -1,7 +1,15 @@
 name: {{name}}
 vaults:
-  secure:
-    type: {{vault}}
+{{#nitro}}
+  aws-acm0:
+    type: aws-acm
+  aws-secrets0:
+    type: aws-secrets
+{{/nitro}}
+{{^nitro}}
+  aws-secrets0:
+    type: aws-secrets
+{{/nitro}}
 telemetry:
   metrics:
     - stream.active.received
@@ -46,7 +54,12 @@ bindings:
   tls_server:
     type: tls
     kind: server
-    vault: secure
+{{#nitro}}
+    vault: aws-acm0
+{{/nitro}}
+{{^nitro}}
+    vault: aws-secrets0
+{{/nitro}}
     options:
       keys:
         - {{{external.certificate}}}
@@ -81,8 +94,8 @@ bindings:
   tls_client:
     type: tls
     kind: client
-    vault: secure
 {{#internal.trust}}
+    vault: aws-secrets0
     options:
       signers:
         - {{{internal.trust}}}

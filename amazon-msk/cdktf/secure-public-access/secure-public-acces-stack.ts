@@ -36,7 +36,7 @@ import { AutoscalingPolicy } from "@cdktf/provider-aws/lib/autoscaling-policy";
 
 interface TemplateData {
   name: string;
-  useAcm: boolean;
+  nitro: boolean;
   cloudwatch?: object;
   autoscaling: object;
   public?: object;
@@ -222,7 +222,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
     const data: TemplateData = {
       name: 'public',
-      useAcm: publicTlsCertificateViaAcm,
+      nitro: publicTlsCertificateViaAcm,
       mTLS: mTLSEnabled,
       autoscaling: zillaPlusContext.autoscaling,
       public: {}
