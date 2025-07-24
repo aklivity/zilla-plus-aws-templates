@@ -43,8 +43,8 @@ async function main() {
     new SecurePrivateAccessClientStack(app, 'SecurePrivateAccessClient', { env: env });
   }
 
-  if (app.node.tryGetContext('SecurePublicAccessBarnabas')) {
-    new SecurePublicAccessStack(app, 'SecurePublicAccessBarnabas', { env: env, freeTrial: freeTrial });
+  if (app.node.tryGetContext('SecurePublicAccess')) {
+    new SecurePublicAccessStack(app, 'SecurePublicAccess', { env: env, freeTrial: freeTrial });
   }
 
   if (app.node.tryGetContext('IotIngestAndControl')) {
