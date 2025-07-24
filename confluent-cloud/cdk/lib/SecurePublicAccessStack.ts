@@ -17,7 +17,7 @@ import { ZillaPlusStackProps } from '../bin/app';
 
 interface TemplateData {
   name: string;
-  vault: string;
+  nitro: boolean;
   cloudwatch?: object;
   internal?: object;
   external?: object;
@@ -130,7 +130,7 @@ export class SecurePublicAccessStack extends cdk.Stack {
     // zilla.yaml template data
     const zillaYamlData: TemplateData = {
       name: 'public',
-      vault: nitroEnclavesEnabled ? 'aws-acm' : 'aws-secrets',
+      nitro: nitroEnclavesEnabled,
       internal: {},
       external: {}
     };
