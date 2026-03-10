@@ -6,6 +6,7 @@ import { SecurePrivateAccessClientStack } from '../lib/SecurePrivateAccessClient
 import { SecurePublicAccessStack } from '../lib/SecurePublicAccessStack';
 import { MskServerlessClusterStack } from '../lib/MskServerlessClusterStack';
 import { MskProvisionedClusterStack } from '../lib/MskProvisionedClusterStack';
+import { MskExpressClusterStack } from '../lib/MskExpressClusterStack';
 import { IotIngestAndControlStack } from '../lib/IotIngestAndControlStack';
 import { WebStreamingStack } from '../lib/WebStreamingStack';
 import { MarketplaceAgreementClient, GetAgreementTermsCommand, SearchAgreementsCommand } from "@aws-sdk/client-marketplace-agreement";
@@ -33,6 +34,10 @@ async function main() {
 
   if (app.node.tryGetContext('MskProvisionedCluster')) {
     new MskProvisionedClusterStack(app, 'MskProvisionedCluster', { env: env });
+  }
+
+  if (app.node.tryGetContext('MskExpressCluster')) {
+    new MskExpressClusterStack(app, 'MskExpressCluster', { env: env });
   }
 
   if (app.node.tryGetContext('SecurePrivateAccess')) {
