@@ -77,7 +77,7 @@ export class MskProvisionedClusterStack extends cdk.Stack {
 
     const mskCluster = new msk.CfnCluster(this, 'ZillaPlus-MskCluster', {
       clusterName: `zilla-plus-${id}`,
-      kafkaVersion: '3.5.1',
+      kafkaVersion: '3.6.0',
       numberOfBrokerNodes: 2,
       brokerNodeGroupInfo: {
         instanceType: 'kafka.t3.small',
